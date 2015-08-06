@@ -53,9 +53,10 @@ trait ExternalDexLoader extends Activity with ExternalResourceLoader {
         getDir("dex", Context.MODE_PRIVATE)
       val cl = new DexClassLoader(dex, cache.getAbsolutePath, null, getClassLoader)
       val clazz = cl.loadClass(cls)
-      Try(clazz.newInstance.asInstanceOf[ActivityProxy]) match {
-        case Success(p) => proxy = Some(p)
-        case Failure(ex) =>
+      try {
+        proxy = Some(clazz.newInstance.asInstanceOf[ActivityProxy])
+      } catch {
+        case ex: Exception =>
           Toast.makeText(this,
             "Unable to load proxy: " + ex.getMessage, Toast.LENGTH_LONG).show()
           log2.w(ex.getMessage, ex)
