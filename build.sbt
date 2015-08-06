@@ -2,7 +2,10 @@ import bintray.Keys._
 
 // val desktop = project.in(file("desktop"))
 
-val plugin = project.in(file("sbt-plugin")).settings(bintrayPublishSettings).settings(
+val plugin = project.in(file("sbt-plugin")).settings(
+  bintrayPublishSettings ++ scriptedSettings ++
+    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.8" % "provided")
+).settings(
   name := "android-protify",
   version := "0.1-SNAPSHOT",
   organization := "com.hanhuy.sbt",
@@ -11,9 +14,10 @@ val plugin = project.in(file("sbt-plugin")).settings(bintrayPublishSettings).set
   repository in bintray := "sbt-plugins",
   publishMavenStyle := false,
   licenses += ("MIT", url("http://opensource.org/licenses/MIT")),
+  scriptedLaunchOpts ++= Seq("-Xmx1024m",
+    "-Dplugin.version=" + version.value
+  ),
   bintrayOrganization in bintray := None
-).settings(
-  addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.8" % "provided")
 )
 
 val lib = project.in(file("lib")).settings(androidBuildJar).settings(
