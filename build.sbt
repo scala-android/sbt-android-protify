@@ -43,6 +43,15 @@ val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   version := "0.1-SNAPSHOT",
   publishMavenStyle := true,
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
+  javacOptions in (Compile,doc) := {
+    (javacOptions in doc).value flatMap { opt =>
+      if (opt.startsWith("-Xbootclasspath/a"))
+        Seq("-bootclasspath", opt.substring(opt.indexOf(":") + 1))
+      else if (opt == "-g")
+        Seq.empty
+      else Seq(opt)
+    }
+  },
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value)
