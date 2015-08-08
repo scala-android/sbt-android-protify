@@ -3,17 +3,13 @@ package com.hanhuy.android.protify
 import android.content.{Intent, Context, BroadcastReceiver}
 import com.hanhuy.android.common.Logcat
 
+import Intents._
+
 /**
  * @author pfnguyen
  */
 object Receivers {
   val log = Logcat("Receivers")
-  val DEX_INTENT = "com.hanhuy.android.protify.action.DEX"
-  val LAYOUT_INTENT = "com.hanhuy.android.protify.action.LAYOUT"
-  val EXTRA_LAYOUT = "com.hanhuy.android.protify.extra.LAYOUT"
-  val EXTRA_DEX = "com.hanhuy.android.protify.extra.DEX"
-  val EXTRA_CLASS = "com.hanhuy.android.protify.extra.CLASS"
-  val EXTRA_RESOURCES = "com.hanhuy.android.protify.extra.RESOURCES"
 }
 class LayoutReceiver extends BroadcastReceiver {
   import Receivers._
@@ -27,7 +23,9 @@ class LayoutReceiver extends BroadcastReceiver {
       layout     = extras.getInt(EXTRA_LAYOUT, -1) if layout != -1
     } {
       log.v("Launching LayoutActivity " + System.currentTimeMillis)
-      LayoutActivity.start(context, resources, layout)
+      LayoutArguments.resources = Some(resources)
+      LayoutArguments.layout = Some(layout)
+      LayoutActivity.start(context)
     }
   }
 }

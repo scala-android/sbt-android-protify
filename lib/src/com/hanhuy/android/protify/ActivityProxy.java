@@ -6,7 +6,8 @@ import android.view.Menu;
 import android.view.MenuItem;
 
 public interface ActivityProxy {
-  public void onPreCreate(Activity activity, Bundle state);
+  public void onProxyLoad(Activity activity);
+  public void onProxyUnload(Activity activity);
   public void onCreate(Activity activity, Bundle state);
   public void onDestroy(Activity activity);
   public void onPause(Activity activity);
@@ -17,7 +18,8 @@ public interface ActivityProxy {
   public boolean onOptionsItemSelected(Activity activity, MenuItem item);
 
   public static class Simple implements ActivityProxy {
-    public void onPreCreate(Activity activity, Bundle state) {}
+    public void onProxyLoad(Activity activity) {}
+    public void onProxyUnload(Activity activity) {}
     public void onCreate(Activity activity, Bundle state) {}
     public void onDestroy(Activity activity) {}
     public void onPause(Activity activity) {}

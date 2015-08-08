@@ -2,12 +2,29 @@ import bintray.Keys._
 
 // val desktop = project.in(file("desktop"))
 
+val common = project.in(file("common")).settings(
+  crossPaths := false,
+  autoScalaLibrary := false,
+  organization := "com.hanhuy.android",
+  name := "protify-common",
+  javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
+  javacOptions in (Compile,doc) := {
+    (javacOptions in doc).value flatMap { opt =>
+      if (opt.startsWith("-Xbootclasspath/a"))
+        Seq("-bootclasspath", opt.substring(opt.indexOf(":") + 1))
+      else if (opt == "-g")
+        Seq.empty
+      else Seq(opt)
+    }
+  },
+  exportJars := true
+)
+
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
     addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.8" % "provided")
 ).settings(
   name := "android-protify",
-  version := "0.1-SNAPSHOT",
   organization := "com.hanhuy.sbt",
   scalacOptions ++= Seq("-deprecation","-Xlint","-feature"),
   sbtPlugin := true,
@@ -17,8 +34,9 @@ val plugin = project.in(file("sbt-plugin")).settings(
   scriptedLaunchOpts ++= Seq("-Xmx1024m",
     "-Dplugin.version=" + version.value
   ),
-  bintrayOrganization in bintray := None
-)
+  bintrayOrganization in bintray := None,
+  mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value
+).dependsOn(common)
 
 val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   platformTarget in Android := "android-15",
@@ -40,7 +58,6 @@ val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   autoScalaLibrary := false,
   organization := "com.hanhuy.android",
   name := "protify",
-  version := "0.1-SNAPSHOT",
   publishMavenStyle := true,
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
   javacOptions in (Compile,doc) := {
@@ -98,7 +115,7 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
   manifestPlaceholders in Android := Map(
     "vmSafeMode" -> (apkbuildDebug in Android).value().toString
   )
-).dependsOn(lib)
+).dependsOn(lib, common)
 
 val test1 = android.Plugin.flavorOf(mobile, "test1").settings(
   applicationId in Android := "com.hanhuy.android.protify.tests",
@@ -127,3 +144,6 @@ val test1 = android.Plugin.flavorOf(mobile, "test1").settings(
 test <<= test in (test1,Android)
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
+
+version in Global := "0.1-SNAPSHOT"
+

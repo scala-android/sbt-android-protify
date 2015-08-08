@@ -5,7 +5,7 @@ import android.content.{Intent, Context}
 import android.os.{Build, Bundle}
 import android.view.{MenuItem, Menu}
 
-import Receivers._
+import Intents._
 import android.widget.Toast
 import com.hanhuy.android.common.Logcat
 import dalvik.system.DexClassLoader
@@ -17,6 +17,7 @@ import scala.util.{Failure, Success, Try}
  */
 object DexActivity {
   def start(ctx: Context, dex: String, res: String, cls: String) = {
+    proxy foreach { case (p,a) => p.onProxyUnload(a) }
     val intent = new Intent(ctx, classOf[DexActivity])
     intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
@@ -25,6 +26,8 @@ object DexActivity {
     intent.putExtra(EXTRA_CLASS, cls)
     ctx.startActivity(intent)
   }
+
+  var proxy = Option.empty[(ActivityProxy, Activity)]
 }
 
 trait ExternalDexLoader extends Activity with ExternalResourceLoader {
@@ -55,6 +58,7 @@ trait ExternalDexLoader extends Activity with ExternalResourceLoader {
       val clazz = cl.loadClass(cls)
       try {
         proxy = Some(clazz.newInstance.asInstanceOf[ActivityProxy])
+        DexActivity.proxy = proxy map (_ -> this)
       } catch {
         case ex: Exception =>
           Toast.makeText(this,
@@ -64,7 +68,7 @@ trait ExternalDexLoader extends Activity with ExternalResourceLoader {
       }
     }
 
-    proxy foreach (_.onPreCreate(this, savedInstanceState))
+    proxy foreach (_.onProxyLoad(this))
     super.onCreate(savedInstanceState)
     proxy foreach (_.onCreate(this, savedInstanceState))
   }
