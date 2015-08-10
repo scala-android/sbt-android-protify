@@ -105,6 +105,7 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
   proguardScala in Android := true,
   proguardOptions in Android ++=
     "-keep class scala.runtime.BoxesRunTime { *; }" :: // for debugging only
+    "-keep class android.support.** { *; }" ::
     "-keep class com.hanhuy.android.protify.ActivityProxy {*;}" ::
     "-keep class com.hanhuy.android.protify.ActivityProxy$Simple {*;}" ::
     Nil,
