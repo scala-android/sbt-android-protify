@@ -18,6 +18,7 @@ import com.hanhuy.android.common.Logcat
 object LayoutArguments {
   var resources = Option.empty[String]
   var layout = Option.empty[Int]
+  var theme = Option.empty[Int]
 }
 
 object LayoutActivity {
@@ -33,13 +34,12 @@ trait LayoutActivityArguments extends Activity with ExternalResourceLoader {
   def resPath = LayoutArguments.resources
   def layoutRes = LayoutArguments.layout
 
+  var lastTheme = Option.empty[Int]
+
   override def onNewIntent(intent: Intent) = {
     super.onNewIntent(intent)
     log.v("Re-launching")
-    resetResources()
-    layoutRes foreach { layout =>
-      setContentView(layout)
-    }
+    recreate()
   }
 
   override def onCreate(savedInstanceState: Bundle) = {
@@ -53,6 +53,8 @@ trait LayoutActivityArguments extends Activity with ExternalResourceLoader {
     layoutRes foreach { layout =>
       try {
         log.v("Before content set: " + System.currentTimeMillis)
+        LayoutArguments.theme foreach setTheme
+        lastTheme = LayoutArguments.theme
         setContentView(layout)
         log.v("Content set: " + System.currentTimeMillis)
       } catch { case e: Exception =>
@@ -73,7 +75,6 @@ trait ExternalResourceLoader extends Activity {
 
   def resPath: Option[String]
 
-  def resetResources() = resourcesCache = None
   private[this] var resourcesCache = Option.empty[Resources]
 
   def resources = resourcesCache getOrElse {

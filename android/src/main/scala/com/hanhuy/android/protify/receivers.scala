@@ -14,7 +14,6 @@ object Receivers {
 class LayoutReceiver extends BroadcastReceiver {
   import Receivers._
   override def onReceive(context: Context, intent: Intent) = {
-    log.v("Received intent: " + intent)
     for {
       intent    <- Option(intent)
       action    <- Option(intent.getAction) if action == LAYOUT_INTENT
@@ -22,9 +21,10 @@ class LayoutReceiver extends BroadcastReceiver {
       resources <- Option(extras.getString(EXTRA_RESOURCES))
       layout     = extras.getInt(EXTRA_LAYOUT, -1) if layout != -1
     } {
-      log.v("Launching LayoutActivity " + System.currentTimeMillis)
       LayoutArguments.resources = Some(resources)
       LayoutArguments.layout = Some(layout)
+      val theme = extras.getInt(EXTRA_THEME, 0)
+      LayoutArguments.theme = if (theme == 0) None else Some(theme)
       LayoutActivity.start(context)
     }
   }
