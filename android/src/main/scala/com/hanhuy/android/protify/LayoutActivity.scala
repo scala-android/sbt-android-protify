@@ -4,7 +4,7 @@ import android.app.Activity
 import android.content.{Intent, Context}
 import android.content.res.{XmlResourceParser, Configuration, AssetManager, Resources}
 import android.os.Bundle
-import android.support.v7.app.AppCompatActivity
+//import android.support.v7.app.AppCompatActivity
 import android.util.{TypedValue, AttributeSet, DisplayMetrics}
 import android.view.LayoutInflater
 
@@ -107,12 +107,12 @@ trait ExternalResourceLoader extends Activity {
 }
 // currently does not work at all due to mismatch of R and injected resources
 // custom themes that do not depend on AppCompat /may/ work
-class AppCompatLayoutActivity extends AppCompatActivity with LayoutActivityArguments {
-  override def onCreate(savedInstanceState: Bundle) = {
-    super.onCreate(savedInstanceState)
-    setTheme(R.style.Theme_AppCompat_Light)
-  }
-}
+//class AppCompatLayoutActivity extends AppCompatActivity with LayoutActivityArguments {
+//  override def onCreate(savedInstanceState: Bundle) = {
+//    setTheme(R.style.Theme_AppCompat_Light)
+//    super.onCreate(savedInstanceState)
+//  }
+//}
 class LayoutActivity extends Activity with LayoutActivityArguments
 
 class ResourcesWrapper(am: AssetManager, dm: DisplayMetrics, c: Configuration, res: Resources) extends Resources(am, dm, c) {
