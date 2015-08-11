@@ -1,4 +1,8 @@
+import java.io.BufferedReader
+
 import bintray.Keys._
+
+import scala.annotation.tailrec
 
 // val desktop = project.in(file("desktop"))
 
@@ -103,6 +107,29 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
   scalaVersion := "2.11.7",
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
   proguardScala in Android := true,
+  rGenerator in Android := {
+    val r = (rGenerator in Android).value
+
+    def exists(in: BufferedReader)(f: String => Boolean): Boolean = {
+      @tailrec
+      def readLine(accum: Boolean): Boolean = {
+        val line = in.readLine()
+        if (accum || (line eq null)) accum else readLine(f(line))
+      }
+      readLine(false)
+    }
+
+    val supportR = r filter {
+      Using.fileReader(IO.utf8)(_) { in =>
+        exists(in)(_ contains "package android.support")
+      }
+    }
+    supportR foreach { s =>
+      val lines = IO.readLines(s)
+      IO.writeLines(s, lines map (_.replaceAll(" final ", " ")))
+    }
+    r
+  },
   proguardOptions in Android ++=
     "-keep class scala.runtime.BoxesRunTime { *; }" :: // for debugging only
     "-keep class android.support.** { *; }" ::
@@ -111,10 +138,8 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
     Nil,
   libraryDependencies ++=
     "com.hanhuy.android" %% "scala-common" % "1.0" ::
-//    cannot be included in the base application, must be loaded via dex  :(
-//    otherwise, resources IDs will be incorrect
-//    "com.android.support" % "appcompat-v7" % "22.2.1" ::
-//    "com.android.support" % "design" % "22.2.1" ::
+    "com.android.support" % "appcompat-v7" % "22.2.1" ::
+    "com.android.support" % "design" % "22.2.1" ::
     Nil,
   manifestPlaceholders in Android := Map(
     "vmSafeMode" -> (apkbuildDebug in Android).value().toString

@@ -2,13 +2,12 @@ package com.hanhuy.android.protify
 
 import android.app.Activity
 import android.content.{Intent, Context}
-import android.content.res.{XmlResourceParser, Configuration, AssetManager, Resources}
+import android.content.res.{Configuration, AssetManager, Resources}
 import android.os.Bundle
-//import android.support.v7.app.AppCompatActivity
+import android.support.v7.app.AppCompatActivity
 import android.util.{TypedValue, AttributeSet, DisplayMetrics}
 import android.view.LayoutInflater
 
-import Intents._
 import android.widget.Toast
 import com.hanhuy.android.common.Logcat
 
@@ -17,13 +16,19 @@ import com.hanhuy.android.common.Logcat
  */
 object LayoutArguments {
   var resources = Option.empty[String]
-  var layout = Option.empty[Int]
-  var theme = Option.empty[Int]
+  var layout    = Option.empty[Int]
+  var theme     = Option.empty[Int]
+  var appcompat = false
 }
 
 object LayoutActivity {
+  val log = Logcat("LayoutActivity")
   def start(ctx: Context) = {
-    val intent = new Intent(ctx, classOf[LayoutActivity])
+    if (LayoutArguments.appcompat)
+      log.v("Launching AppCompatLayoutActivity")
+
+    val intent = new Intent(ctx, if (LayoutArguments.appcompat)
+      classOf[AppCompatLayoutActivity] else classOf[LayoutActivity])
     intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     ctx.startActivity(intent)
@@ -89,7 +94,6 @@ trait ExternalResourceLoader extends Activity {
           val am = classOf[AssetManager].newInstance
           am.asInstanceOf[PrivateAssetManager].addAssetPath(f.getAbsolutePath)
           log.v("Loaded resources from: " + res)
-//          new Resources(am, oldres.getDisplayMetrics, oldres.getConfiguration)
           val r = new ResourcesWrapper(am, oldres.getDisplayMetrics, oldres.getConfiguration, oldres)
           resourcesCache = Some(r)
           r
@@ -107,12 +111,7 @@ trait ExternalResourceLoader extends Activity {
 }
 // currently does not work at all due to mismatch of R and injected resources
 // custom themes that do not depend on AppCompat /may/ work
-//class AppCompatLayoutActivity extends AppCompatActivity with LayoutActivityArguments {
-//  override def onCreate(savedInstanceState: Bundle) = {
-//    setTheme(R.style.Theme_AppCompat_Light)
-//    super.onCreate(savedInstanceState)
-//  }
-//}
+class AppCompatLayoutActivity extends AppCompatActivity with LayoutActivityArguments
 class LayoutActivity extends Activity with LayoutActivityArguments
 
 class ResourcesWrapper(am: AssetManager, dm: DisplayMetrics, c: Configuration, res: Resources) extends Resources(am, dm, c) {

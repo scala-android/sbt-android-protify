@@ -38,8 +38,8 @@ object Keys {
   private object Internal {
     val protifyDexes = TaskKey[Seq[String]]("protify-dexes", "internal key: autodetected classes with ActivityProxy")
     val protifyLayouts = TaskKey[Seq[ResourceId]]("protify-layouts", "internal key: autodetected layout files")
-    val protifyThemes = TaskKey[Seq[ResourceId]]("protify-themes", "internal key: platform themes")
-    val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("protify-layouts-and-themes", "internal key: themes and layouts")
+    val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("protify-themes", "internal key: platform themes, app themes")
+    val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("protify-layouts-and-themes", "internal key: themes and layouts")
   }
   val Protify = config("protify") extend Compile
 
@@ -49,7 +49,7 @@ object Keys {
     protifyDex <<= protifyDexTaskDef(),
     protifyLayout <<= protifyLayoutTaskDef(),
     protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify),
-    protifyThemes <<= discoverAndroidThemes storeAs protifyThemes triggeredBy (updateCheck in Android),
+    protifyThemes <<= discoverThemes storeAs protifyThemes triggeredBy (compile in Compile, compile in Protify),
     protifyDexes <<= (compile in Protify) map discoverActivityProxies storeAs protifyDexes triggeredBy (compile in Protify),
     protifyLayoutsAndThemes <<= (protifyLayouts,protifyThemes) map ((_,_)) storeAs protifyLayoutsAndThemes triggeredBy (compile in Compile, compile in Protify),
     protifyLayouts <<= protifyLayoutsTaskDef storeAs protifyLayouts triggeredBy (compile in Compile, compile in Protify)
@@ -95,13 +95,59 @@ object Keys {
     cleanForR <<= cleanForR dependsOn rGenerator
   )))
 
-  private val discoverAndroidThemes = Def.task {
+  private val discoverThemes = Def.task {
     val androidJar = (platformJars in Android).value._1
+    val resPath = (projectLayout in Android).value.bin / "resources" / "res"
+    val log = streams.value.log
     val cl = ClasspathUtilities.toLoader(file(androidJar))
     val style = cl.loadClass("android.R$style")
-    style.getDeclaredFields filter (_.getName startsWith "Theme_") map { f =>
+    type Theme = (String,String)
+
+    val values = (resPath ** "values*" ** "*.xml").get
+    import scala.xml._
+    val allstyles = values flatMap { f =>
+      val xml = XML.loadFile(f)
+      (xml \ "style") map { n =>
+        val nm = n.attribute("name").head.text.replace('.','_')
+        val parent = n.attribute("parent").fold(nm.substring(0, nm.indexOf("_")))(_.text).replace('.','_')
+        (nm,parent)
+      }
+    }
+    val tree = allstyles.toMap
+    @tailrec
+    def isTheme(style: String): Boolean = {
+      if (style startsWith "Theme_") true
+      else if (tree.contains(style))
+        isTheme(tree(style))
+      else false
+    }
+    @tailrec
+    def isAppCompatTheme(style: String): Boolean = {
+      if (style startsWith "Theme_AppCompat") true
+      else if (tree.contains(style))
+        isAppCompatTheme(tree(style))
+      else false
+    }
+
+    val pkg = (packageForR in Android).value
+    val loader = ClasspathUtilities.toLoader((classDirectory in Compile).value)
+    val clazz = loader.loadClass(pkg + ".R$style")
+    val themes = allstyles.map(_._1) filter isTheme flatMap { t =>
+      try {
+        val f = clazz.getDeclaredField(t)
+        Seq((t, f.getInt(null)))
+      } catch {
+        case e: Exception =>
+          log.warn(s"Unable to lookup field: $t, because ${e.getMessage}")
+          Seq.empty
+      }
+    }
+    val appcompat = themes filter (t => isAppCompatTheme(t._1))
+
+    // return (platform + all app themes, appcompat-only themes)
+    ((style.getDeclaredFields filter (_.getName startsWith "Theme_") map { f =>
       (f.getName, f.getInt(null))
-    } toSeq
+    } toSeq) ++ themes,appcompat)
   }
   private val protifyLayoutsTaskDef = Def.task {
     val pkg = (packageForR in Android).value
@@ -115,10 +161,9 @@ object Keys {
     val parser = loadForParser(protifyLayoutsAndThemes) { (s, stored) =>
       import sbt.complete.Parser
       import sbt.complete.DefaultParsers._
-      val res = stored.getOrElse((Seq.empty[ResourceId],Seq(("<no theme loaded>", 0))))
+      val res = stored.getOrElse((Seq.empty[ResourceId],(Seq(("<no themes>",0)),Seq.empty[ResourceId])))
       val layouts = res._1.map(_._1)
-      val themes = res._2 map (t => token(t._1))
-      spaceDelimited("foo")
+      val themes = res._2._1 map (t => token(t._1))
       EOF.map(_ => None) | (Space ~> Parser.opt(token(NotSpace examples layouts.toSet) ~ Parser.opt((Space ~> Parser.oneOf(themes)) <~ SpaceClass.*)))
     }
     Def.inputTask {
@@ -127,38 +172,54 @@ object Keys {
       val log = streams.value.log
       val all = (allDevices in Android).value
       val sdk = (sdkPath in Android).value
+      val layout = (projectLayout in Android).value
+      val rTxt = layout.gen / "R.txt"
+      val rTxtHash = Hash.toHex(Hash(rTxt))
       val layouts = loadFromContext(protifyLayouts, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
-      val themes = loadFromContext(protifyThemes, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil).toMap
-      if (layouts.isEmpty) {
-        android.Plugin.fail("No layouts found, compile first?")
+      val themes = loadFromContext(protifyThemes, sbt.Keys.resolvedScoped.value, state.value).getOrElse((Nil,Nil))
+      if (layouts.isEmpty || themes._1.isEmpty) {
+        android.Plugin.fail("No layouts or themes cached, compile first?")
       }
       if (l.isEmpty) {
         log.info("Previewing R.layout." + layouts.head._1)
       }
       val resid = l.fold(layouts.head._2)(r => layouts.toMap.apply(r._1))
-      val themeid = l.fold(0)(r => r._2.fold(0)(themes(_)))
+      val appcompat = themes._2.toMap
+      val theme = l.flatMap(_._2)
+      val themeid = theme.fold(0)(themes._1.toMap.apply)
       log.debug("available layouts: " + layouts)
       import android.Commands
       import com.hanhuy.android.protify.Intents._
       def execute(dev: IDevice): Unit = {
         val f = java.io.File.createTempFile("resources", ".ap_")
+        val f2 = java.io.File.createTempFile("RES", ".txt")
         f.delete()
-        val cmd = s"am broadcast -a $LAYOUT_INTENT " +
-          s"-e $EXTRA_RESOURCES /sdcard/protify/${f.getName} " +
-          s"--ei $EXTRA_THEME $themeid " +
-          s"--ei $EXTRA_LAYOUT $resid " +
-          s"com.hanhuy.android.protify/.LayoutReceiver"
-        log.debug("Executing: " + cmd)
+        f2.delete()
+        val cmdS =
+          "am"   :: "broadcast"     ::
+          "-a"   :: LAYOUT_INTENT   ::
+          "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/${f.getName}"       ::
+          "-e"   :: EXTRA_RTXT      :: s"/sdcard/protify/${f2.getName}"      ::
+          "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                              ::
+          "--ez" :: EXTRA_APPCOMPAT :: theme.fold(false)(appcompat.contains) ::
+          "--ei" :: EXTRA_THEME     :: themeid                               ::
+          "--ei" :: EXTRA_LAYOUT    :: resid                                 ::
+          "com.hanhuy.android.protify/.LayoutReceiver"                       ::
+          Nil
+
+        log.debug("Executing: " + cmdS.mkString(" "))
         dev.executeShellCommand("rm -rf /sdcard/protify/*", new Commands.ShellResult)
-        android.Tasks.logRate(log, "resources deployed:", res.length) {
+        android.Tasks.logRate(log, "resources deployed:", res.length + rTxt.length) {
           dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/${f.getName}")
+          if (rTxt.isFile)
+            dev.pushFile(rTxt.getAbsolutePath, s"/sdcard/protify/${f2.getName}")
         }
-        dev.executeShellCommand(cmd, new Commands.ShellResult)
+        dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
       }
       if (all)
-        Commands.deviceList(sdk, streams.value.log).par foreach execute
+        Commands.deviceList(sdk, log).par foreach execute
       else
-        Commands.targetDevice(sdk, streams.value.log) foreach execute
+        Commands.targetDevice(sdk, log) foreach execute
     }
   }
   def protifyDexTaskDef(): Initialize[InputTask[Unit]] = {
