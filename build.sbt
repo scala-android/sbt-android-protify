@@ -6,6 +6,8 @@ import scala.annotation.tailrec
 
 // val desktop = project.in(file("desktop"))
 
+val rtxtGenerator = TaskKey[Seq[File]]("rtxt-generator")
+
 val common = project.in(file("common")).settings(
   crossPaths := false,
   autoScalaLibrary := false,
@@ -107,6 +109,82 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
   scalaVersion := "2.11.7",
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
   proguardScala in Android := true,
+  sourceGenerators in Compile <+= rtxtGenerator,
+  rtxtGenerator <<= Def.task {
+    val layout = (projectLayout in Android).value
+    val rtxt = layout.gen / "R.txt"
+    val aars = target.value / "aars"
+    val librtxt = aars ** "R.txt" get
+    val appcompatR = librtxt.filter(_.getParentFile.getName.startsWith("com.android.support-appcompat-v7")).head
+    val designR = librtxt.filter(_.getParentFile.getName.startsWith("com.android.support-design")).head
+    def collectConst(in: BufferedReader) = {
+      IO.foldLines(in, Map.empty[String,Set[String]]) { (m, line) =>
+        val parts = line.split(" ")
+        val clazz = parts(1)
+        val name = parts(2)
+        m + ((clazz, m.getOrElse(clazz, Set.empty) + name))
+      }
+    }
+    val appcompatConst = Using.fileReader(IO.utf8)(appcompatR)(collectConst)
+    val designConst    = Using.fileReader(IO.utf8)(designR)(collectConst)
+
+    val rloader = layout.gen / "com" / "hanhuy" / "android" / "protify" / "RTxtLoader.java"
+    val intTemplate =
+      """
+        |            case "%s:%s":
+        |                %s
+        |                %s
+        |                break;
+      """.stripMargin
+    val arrayTemplate =
+      """
+        |            case "%s:%s":
+        |                %s
+        |                %s
+        |                break;
+      """.stripMargin
+    val template =
+      """
+        |package com.hanhuy.android.protify;
+        |public class RTxtLoader extends RTxtLoaderBase {
+        |    @Override public void setInt(String clazz, String name, int value) {
+        |        switch (clazz + ":" + name) {
+        |%s
+        |        }
+        |    }
+        |    @Override public void setIntArray(String clazz, String name, int[] value) {
+        |        switch (clazz + ":" + name) {
+        |%s
+        |        }
+        |    }
+        |}
+      """.stripMargin
+    if (!rtxt.isFile) android.Plugin.fail("R.txt does not exist yet")
+    val (vals, arys) = Using.fileReader(IO.utf8)(rtxt) { in =>
+      IO.foldLines(in, (List.empty[String],List.empty[String])) { case ((values, arrays), line) =>
+        val parts = line.split(" ")
+        parts(0) match {
+          case "int" =>
+            val clazz = parts(1)
+            val name = parts(2)
+            val c = intTemplate format (clazz, name,
+              if (designConst.getOrElse(clazz, Set.empty)(name)) s"android.support.design.R.$clazz.$name = value;" else "",
+              if (appcompatConst.getOrElse(clazz, Set.empty)(name)) s"android.support.v7.appcompat.R.$clazz.$name = value;" else "")
+            (c :: values, arrays)
+          case "int[]" =>
+            val clazz = parts(1)
+            val name = parts(2)
+            val c = arrayTemplate format (clazz, name,
+              if (designConst.getOrElse(clazz, Set.empty)(name)) s"android.support.design.R.$clazz.$name = value;" else "",
+              if (appcompatConst.getOrElse(clazz, Set.empty)(name)) s"android.support.v7.appcompat.R.$clazz.$name = value;" else "")
+            (values, c :: arrays)
+        }
+      }
+    }
+    IO.writeLines(rloader,
+      template.format(vals.mkString, arys.mkString) :: Nil)
+    Seq(rloader)
+  } dependsOn (rGenerator in Android),
   rGenerator in Android := {
     val r = (rGenerator in Android).value
 

@@ -48,6 +48,7 @@ trait LayoutActivityArguments extends Activity with ExternalResourceLoader {
   }
 
   override def onCreate(savedInstanceState: Bundle) = {
+    LayoutArguments.theme foreach setTheme
     super.onCreate(savedInstanceState)
     log.v("Activity starting: " + System.currentTimeMillis)
     if (layoutRes.isEmpty) {
@@ -58,7 +59,6 @@ trait LayoutActivityArguments extends Activity with ExternalResourceLoader {
     layoutRes foreach { layout =>
       try {
         log.v("Before content set: " + System.currentTimeMillis)
-        LayoutArguments.theme foreach setTheme
         lastTheme = LayoutArguments.theme
         setContentView(layout)
         log.v("Content set: " + System.currentTimeMillis)

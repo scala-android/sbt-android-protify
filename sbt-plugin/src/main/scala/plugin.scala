@@ -190,6 +190,7 @@ object Keys {
       log.debug("available layouts: " + layouts)
       import android.Commands
       import com.hanhuy.android.protify.Intents._
+      val isAppcompat = theme.fold(false)(appcompat.contains)
       def execute(dev: IDevice): Unit = {
         val f = java.io.File.createTempFile("resources", ".ap_")
         val f2 = java.io.File.createTempFile("RES", ".txt")
@@ -198,13 +199,13 @@ object Keys {
         val cmdS =
           "am"   :: "broadcast"     ::
           "-a"   :: LAYOUT_INTENT   ::
-          "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/${f.getName}"       ::
-          "-e"   :: EXTRA_RTXT      :: s"/sdcard/protify/${f2.getName}"      ::
-          "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                              ::
-          "--ez" :: EXTRA_APPCOMPAT :: theme.fold(false)(appcompat.contains) ::
-          "--ei" :: EXTRA_THEME     :: themeid                               ::
-          "--ei" :: EXTRA_LAYOUT    :: resid                                 ::
-          "com.hanhuy.android.protify/.LayoutReceiver"                       ::
+          "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/${f.getName}"  ::
+          "-e"   :: EXTRA_RTXT      :: s"/sdcard/protify/${f2.getName}" ::
+          "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                         ::
+          "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
+          "--ei" :: EXTRA_THEME     :: themeid                          ::
+          "--ei" :: EXTRA_LAYOUT    :: resid                            ::
+          "com.hanhuy.android.protify/.LayoutReceiver"                  ::
           Nil
 
         log.debug("Executing: " + cmdS.mkString(" "))
