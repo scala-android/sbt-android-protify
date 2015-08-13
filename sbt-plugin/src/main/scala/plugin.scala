@@ -3,6 +3,7 @@ package android.protify
 import java.io.File
 
 import android.Keys.Internal._
+import android.{Aggregate, Dex, Proguard}
 import com.android.ddmlib.IDevice
 import sbt.Def.Initialize
 import sbt._
@@ -36,17 +37,18 @@ object Keys {
   val protifyDex = InputKey[Unit]("protify-dex", "prototype code on device")
 
   private object Internal {
+    val Protify = config("protify") extend Compile
     val protifyDexes = TaskKey[Seq[String]]("protify-dexes", "internal key: autodetected classes with ActivityProxy")
     val protifyLayouts = TaskKey[Seq[ResourceId]]("protify-layouts", "internal key: autodetected layout files")
     val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("protify-themes", "internal key: platform themes, app themes")
     val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("protify-layouts-and-themes", "internal key: themes and layouts")
+    val ProtifyInternal = config("protify-internal") extend Protify
   }
-  val Protify = config("protify") extend Compile
 
   lazy val protifySettings: List[Setting[_]] = List(
     ivyConfigurations := overrideConfigs(Protify)(ivyConfigurations.value),
     libraryDependencies += "com.hanhuy.android" % "protify" % "0.1-SNAPSHOT" % "protify",
-    protifyDex <<= protifyDexTaskDef(),
+    protifyDex <<= protifyDexTaskDef() dependsOn (dex in Protify),
     protifyLayout <<= protifyLayoutTaskDef(),
     protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify),
     protifyThemes <<= discoverThemes storeAs protifyThemes triggeredBy (compile in Compile, compile in Protify),
@@ -73,7 +75,18 @@ object Keys {
           case w: ProjectLayout.Wrapped => sourcesFor(w.wrapped)
         }
         sourcesFor(layout)
-      }
+      },
+    proguardOptions      := (proguardOptions in Android).value,
+    proguardOptions      += "-keep public class * extends com.hanhuy.android.protify.ActivityProxy { *; }",
+    proguardAggregate   <<= proguardAggregateTaskDef,
+    proguardInputs      <<= proguardInputsTaskDef,
+    proguardInputs      <<= proguardInputs dependsOn (sbt.Keys.`package` in Protify),
+    proguard            <<= proguardTaskDef,
+    dexAggregate        <<= dexAggregateTaskDef,
+    dexInputs           <<= dexInputsTaskDef,
+    dex                 <<= dexTaskDef
+  ) ++ inConfig(ProtifyInternal)(
+    dependencyClasspath <<= dependencyClasspathTaskDef
   ) ++ inConfig(Android)(List(
     cleanForR := {
       val d = (classDirectory in Compile).value
@@ -239,4 +252,98 @@ object Keys {
         case (definition, discovered) if !definition.modifiers.isAbstract &&
           discovered.baseClasses("com.hanhuy.android.protify.ActivityProxy") =>
           definition.name }).sorted
+
+  val proguardAggregateTaskDef = Def.task {
+    Aggregate.Proguard(
+      (useProguard        in Android).value,
+      (useProguardInDebug in Android).value,
+      (proguardScala      in Android).value,
+      (proguardConfig     in Android).value,
+      proguardOptions.value,
+      (proguardCache      in Android).value)
+  }
+  private val proguardInputsTaskDef = Def.task {
+    val u         = (useProguard         in Android).value
+    val pgConfig  = (proguardConfig      in Android).value
+    val l         = (proguardLibraries   in Android).value
+    val (p,x)     = (platformJars        in Android).value
+    val s         = (proguardScala       in Android).value
+    val pc        = (proguardCache       in Android).value
+    val debug     = (apkbuildDebug       in Android).value
+    val d         = (dependencyClasspath in ProtifyInternal).value
+    val pgOptions = proguardOptions.value
+    val c         = sbt.Keys.`package`.value
+    val st        = streams.value
+    Proguard.proguardInputs(
+      u, pgOptions, pgConfig, l, d, p, x, c, s, pc, debug(), st)
+  }
+
+  private val proguardTaskDef = Def.task {
+    val bldr   = (builder              in Android).value
+    val l      = (libraryProject       in Android).value
+    val debug  = (apkbuildDebug        in Android).value
+    val b      = (binPath              in Android).value
+    val ra     = (retrolambdaAggregate in Android).value
+    val a      = proguardAggregate.value
+    val inputs = proguardInputs.value
+    val s      = streams.value
+    Proguard.proguard(a, bldr, l, inputs, debug(), b, ra, s)
+  }
+  val dexAggregateTaskDef = Def.task {
+    Aggregate.Dex(
+      dexInputs.value,
+      (dexMaxHeap               in Android).value,
+      (dexMulti                 in Android).value,
+      (dexMainFileClassesConfig in Android).value,
+      (dexMinimizeMainFile      in Android).value,
+      (dexAdditionalParams      in Android).value)
+  }
+  private val dexInputsTaskDef = Def.task {
+    val ra       = (retrolambdaAggregate in Android).value
+    val multiDex = (dexMulti             in Android).value
+    val b        = (binPath              in Android).value
+    val classJar = (classesJar           in Android).value
+    val debug    = (apkbuildDebug        in Android).value
+    val deps     = (dependencyClasspath  in ProtifyInternal).value
+    val pa       = proguardAggregate.value
+    val in       = proguardInputs.value
+    val progOut  = proguard.value
+    val s        = streams.value
+    Dex.dexInputs(progOut, in, pa, ra, multiDex, b, deps, classJar, debug(), s)
+  }
+  private val dexTaskDef = Def.task {
+    val bldr    = (builder        in Android).value
+    val pd      = (predex         in Android).value
+    val minSdk  = (minSdkVersion  in Android).value
+    val lib     = (libraryProject in Android).value
+    val bin     = (binPath        in Android).value
+    val debug   = (apkbuildDebug  in Android).value
+    val pg      = proguard.value
+    val dexOpts = dexAggregate.value
+    val s       = streams.value
+    val classes = sbt.Keys.`package`.value
+    Dex.dex(bldr, dexOpts, pd, pg, classes, minSdk, lib, bin, debug(), s)
+  }
+  val dependencyClasspathTaskDef = Def.task {
+    val cp = (dependencyClasspath in Protify).value
+    val d  = libraryDependencies.value
+    val s  = streams.value
+    s.log.debug("Filtering compile:dependency-classpath from: " + cp)
+    val pvd = d filter { dep => dep.configurations exists (_ == "provided") }
+
+    cp foreach { a =>
+      s.log.debug("%s => %s: %s" format (a.data.getName,
+        a.get(configuration.key), a.get(moduleID.key)))
+    }
+    // it seems internal-dependency-classpath already filters out "provided"
+    // from other projects, now, just filter out our own "provided" lib deps
+    // do not filter out provided libs for scala, we do that later
+    cp filterNot {
+      _.get(moduleID.key) exists { m =>
+        m.organization != "org.scala-lang" &&
+          (pvd exists (p => m.organization == p.organization &&
+            m.name == p.name))
+      }
+    }
+  }
 }
