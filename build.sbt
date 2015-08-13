@@ -216,6 +216,7 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
     Nil,
   libraryDependencies ++=
     "com.hanhuy.android" %% "scala-common" % "1.0" ::
+    "com.hanhuy.android" % "viewserver" % "1.0.2" ::
     "com.android.support" % "appcompat-v7" % "22.2.1" ::
     "com.android.support" % "design" % "22.2.1" ::
     Nil,

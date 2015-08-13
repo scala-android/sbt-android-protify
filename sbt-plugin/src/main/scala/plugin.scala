@@ -38,10 +38,10 @@ object Keys {
 
   private object Internal {
     val Protify = config("protify") extend Compile
-    val protifyDexes = TaskKey[Seq[String]]("protify-dexes", "internal key: autodetected classes with ActivityProxy")
-    val protifyLayouts = TaskKey[Seq[ResourceId]]("protify-layouts", "internal key: autodetected layout files")
-    val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("protify-themes", "internal key: platform themes, app themes")
-    val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("protify-layouts-and-themes", "internal key: themes and layouts")
+    val protifyDexes = TaskKey[Seq[String]]("internal-protify-dexes", "internal key: autodetected classes with ActivityProxy")
+    val protifyLayouts = TaskKey[Seq[ResourceId]]("internal-protify-layouts", "internal key: autodetected layout files")
+    val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("internal-protify-themes", "internal key: platform themes, app themes")
+    val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("internal-protify-layouts-and-themes", "internal key: themes and layouts")
     val ProtifyInternal = config("protify-internal") extend Protify
   }
 
@@ -58,6 +58,7 @@ object Keys {
   ) ++ inConfig(Protify)(Defaults.compileSettings) ++ inConfig(Protify)(List(
     javacOptions := (javacOptions in Compile).value,
     scalacOptions := (scalacOptions in Compile).value,
+    sourceGenerators <<= (sourceGenerators in Compile),
     unmanagedSourceDirectories :=
       (unmanagedSourceDirectories in Compile).value ++ {
         val layout = (projectLayout in Android).value
@@ -82,6 +83,7 @@ object Keys {
     proguardInputs      <<= proguardInputsTaskDef,
     proguardInputs      <<= proguardInputs dependsOn (sbt.Keys.`package` in Protify),
     proguard            <<= proguardTaskDef,
+//    predex              <<= predexTaskDef,
     dexAggregate        <<= dexAggregateTaskDef,
     dexInputs           <<= dexInputsTaskDef,
     dex                 <<= dexTaskDef
@@ -237,14 +239,71 @@ object Keys {
     }
   }
   def protifyDexTaskDef(): Initialize[InputTask[Unit]] = {
-    val parser = loadForParser(protifyDexes) { (s, names) =>
-      Defaults.runMainParser(s, names getOrElse Nil)
+    val parser = loadForParser(protifyDexes) { (s, stored) =>
+      import sbt.complete.Parser
+      import sbt.complete.DefaultParsers._
+      val proxies = stored.getOrElse(Nil)
+      EOF.map(_ => None) | (Space ~> Parser.opt(token(NotSpace examples proxies.toSet) ~ Parser.opt((Space ~> token("appcompat")) <~ SpaceClass.*)))
     }
     Def.inputTask {
       val l = parser.parsed
-      streams.value.log.info("Got: " + l)
-      val dexes = loadFromContext(protifyDexes, sbt.Keys.resolvedScoped.value, state.value)
-      streams.value.log.info("available layouts: " + dexes)
+      val dexes = loadFromContext(protifyDexes, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
+      val res = (packageResources in Android).value
+      val dexfile = (dex in Protify).value ** "*.dex" get
+      val log = streams.value.log
+      val all = (allDevices in Android).value
+      val sdk = (sdkPath in Android).value
+      val layout = (projectLayout in Android).value
+      val rTxt = layout.gen / "R.txt"
+      val rTxtHash = Hash.toHex(Hash(rTxt))
+      if (dexes.isEmpty) {
+        android.Plugin.fail("No ActivityProxy cached, protify:compile first?")
+      }
+      if (dexfile.size != 1) {
+        android.Plugin.fail("There must only be one DEX file (multidex not supported)")
+      }
+      if (l.isEmpty) {
+        log.info("Previewing " + dexes.head)
+      }
+      log.debug("available proxies: " + dexes)
+      val proxyClass = l.fold(dexes.head)(_._1)
+      import android.Commands
+      import com.hanhuy.android.protify.Intents._
+      val isAppcompat = l.fold(false)(_._2.exists(_ == "appcompat"))
+      def execute(dev: IDevice): Unit = {
+        import java.io.File.createTempFile
+        val f = createTempFile("resources", ".ap_")
+        val f2 = createTempFile("RES", ".txt")
+        val f3 = createTempFile("classes", ".dex")
+        f.delete()
+        f2.delete()
+        f3.delete()
+        val cmdS =
+          "am"   :: "broadcast"     ::
+            "-a"   :: DEX_INTENT   ::
+            "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/${f.getName}"  ::
+            "-e"   :: EXTRA_RTXT      :: s"/sdcard/protify/${f2.getName}" ::
+            "-e"   :: EXTRA_DEX       :: s"/sdcard/protify/${f3.getName}" ::
+            "-e"   :: EXTRA_CLASS     :: proxyClass                       ::
+            "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                         ::
+            "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
+            "com.hanhuy.android.protify/.DexReceiver"                     ::
+            Nil
+
+        log.debug("Executing: " + cmdS.mkString(" "))
+        dev.executeShellCommand("rm -rf /sdcard/protify/*", new Commands.ShellResult)
+        android.Tasks.logRate(log, "code deployed:", dexfile.head.length + res.length + rTxt.length) {
+          dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/${f.getName}")
+          dev.pushFile(dexfile.head.getAbsolutePath, s"/sdcard/protify/${f3.getName}")
+          if (rTxt.isFile)
+            dev.pushFile(rTxt.getAbsolutePath, s"/sdcard/protify/${f2.getName}")
+        }
+        dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
+      }
+      if (all)
+        Commands.deviceList(sdk, log).par foreach execute
+      else
+        Commands.targetDevice(sdk, log) foreach execute
     }
   }
   def discoverActivityProxies(analysis: inc.Analysis): Seq[String] =
@@ -294,7 +353,7 @@ object Keys {
       dexInputs.value,
       (dexMaxHeap               in Android).value,
       (dexMulti                 in Android).value,
-      (dexMainFileClassesConfig in Android).value,
+      file("/"), //(dexMainFileClassesConfig in Android).value,
       (dexMinimizeMainFile      in Android).value,
       (dexAdditionalParams      in Android).value)
   }
@@ -302,9 +361,9 @@ object Keys {
     val ra       = (retrolambdaAggregate in Android).value
     val multiDex = (dexMulti             in Android).value
     val b        = (binPath              in Android).value
-    val classJar = (classesJar           in Android).value
     val debug    = (apkbuildDebug        in Android).value
     val deps     = (dependencyClasspath  in ProtifyInternal).value
+    val classJar = sbt.Keys.`package`.value
     val pa       = proguardAggregate.value
     val in       = proguardInputs.value
     val progOut  = proguard.value
@@ -313,18 +372,19 @@ object Keys {
   }
   private val dexTaskDef = Def.task {
     val bldr    = (builder        in Android).value
-    val pd      = (predex         in Android).value
     val minSdk  = (minSdkVersion  in Android).value
     val lib     = (libraryProject in Android).value
     val bin     = (binPath        in Android).value
     val debug   = (apkbuildDebug  in Android).value
     val pg      = proguard.value
+//    val pd      = predex.value
     val dexOpts = dexAggregate.value
     val s       = streams.value
     val classes = sbt.Keys.`package`.value
-    Dex.dex(bldr, dexOpts, pd, pg, classes, minSdk, lib, bin, debug(), s)
+    Dex.dex(bldr, dexOpts, Seq.empty, pg, classes, minSdk, lib, bin, debug(), s)
   }
   val dependencyClasspathTaskDef = Def.task {
+    val cj = (classesJar in Android).value
     val cp = (dependencyClasspath in Protify).value
     val d  = libraryDependencies.value
     val s  = streams.value
@@ -338,12 +398,26 @@ object Keys {
     // it seems internal-dependency-classpath already filters out "provided"
     // from other projects, now, just filter out our own "provided" lib deps
     // do not filter out provided libs for scala, we do that later
-    cp filterNot {
-      _.get(moduleID.key) exists { m =>
+    cp filterNot { a =>
+      (cj.getAbsolutePath == a.data.getAbsolutePath) || (a.get(moduleID.key) exists { m =>
         m.organization != "org.scala-lang" &&
           (pvd exists (p => m.organization == p.organization &&
             m.name == p.name))
-      }
+      })
     }
   }
+  /*
+  val predexTaskDef = Def.task {
+    val minSdk   = (minSdkVersion in Android).value
+    val bldr     = (builder       in Android).value
+    val bin      = (binPath       in Android).value
+    val classes  = sbt.Keys.`package`.value
+    val pg       = proguard.value
+    val s        = streams.value
+    val opts     = dexAggregate.value
+    val inputs   = opts.inputs._2
+    val multiDex = opts.multi
+    Dex.predex(opts, inputs, multiDex, minSdk, classes, pg, bldr, bin, s)
+  }
+  */
 }

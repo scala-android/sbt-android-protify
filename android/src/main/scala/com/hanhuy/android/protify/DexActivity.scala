@@ -1,71 +1,80 @@
 package com.hanhuy.android.protify
 
-import android.app.Activity
+import android.app.{ProgressDialog, Activity}
 import android.content.{Intent, Context}
 import android.os.{Build, Bundle}
-import android.view.{MenuItem, Menu}
+import android.support.v7.app.AppCompatActivity
+import android.util.AttributeSet
+import android.view.{View, MenuItem, Menu}
 
 import Intents._
 import android.widget.Toast
 import com.hanhuy.android.common.Logcat
 import dalvik.system.DexClassLoader
 
-import scala.util.{Failure, Success, Try}
-
 /**
  * @author pfnguyen
  */
 object DexActivity {
-  def start(ctx: Context, dex: String, res: String, cls: String) = {
+  def start(ctx: Context) = {
     proxy foreach { case (p,a) => p.onProxyUnload(a) }
-    val intent = new Intent(ctx, classOf[DexActivity])
+    proxy = None
+    val intent = new Intent(ctx, if (DexArguments.appcompat)
+      classOf[AppCompatDexActivity] else classOf[DexActivity])
     intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+    intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-    intent.putExtra(EXTRA_DEX, dex)
-    intent.putExtra(EXTRA_RESOURCES, res)
-    intent.putExtra(EXTRA_CLASS, cls)
     ctx.startActivity(intent)
   }
 
   var proxy = Option.empty[(ActivityProxy, Activity)]
 }
 
+object DexArguments {
+  var resources = ""
+  var dex       = ""
+  var proxy     = ""
+  var appcompat = false
+}
+
 trait ExternalDexLoader extends Activity with ExternalResourceLoader {
   val log2 = Logcat("ExternalDexLoader")
 
-  def arguments = for {
-    intent    <- Option(getIntent)
-    extras    <- Option(intent.getExtras)
-    dex       <- Option(extras.getString(EXTRA_DEX))
-    resources <- Option(extras.getString(EXTRA_RESOURCES))
-    cls       <- Option(extras.getString(EXTRA_CLASS))
-  } yield (dex, resources, cls)
-  override def resPath = arguments map (_._2)
+  override def resPath = Some(DexArguments.resources)
 
   private[this] var proxy = Option.empty[ActivityProxy]
 
+  lazy val loader = {
+    val cache = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
+      getCodeCacheDir
+    else
+      getDir("dex", Context.MODE_PRIVATE)
+    log2.v("Loading dex: " + System.currentTimeMillis)
+    val cl = new DexClassLoader(DexArguments.dex, cache.getAbsolutePath, null, getClassLoader)
+    log2.v("Loaded dex: " + System.currentTimeMillis)
+    cl
+  }
+
+  override def onNewIntent(intent: Intent) = {
+    super.onNewIntent(intent)
+    log2.v("Re-launching")
+    recreate()
+  }
+
   override def onCreate(savedInstanceState: Bundle) = {
-    if (arguments.isEmpty) {
-      Toast.makeText(this, "No DEX to load", Toast.LENGTH_LONG).show()
-      finish()
-    }
-    arguments foreach { case ((dex, res, cls)) =>
-      val cache = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP)
-        getCodeCacheDir
-      else
-        getDir("dex", Context.MODE_PRIVATE)
-      val cl = new DexClassLoader(dex, cache.getAbsolutePath, null, getClassLoader)
-      val clazz = cl.loadClass(cls)
-      try {
-        proxy = Some(clazz.newInstance.asInstanceOf[ActivityProxy])
-        DexActivity.proxy = proxy map (_ -> this)
-      } catch {
-        case ex: Exception =>
-          Toast.makeText(this,
-            "Unable to load proxy: " + ex.getMessage, Toast.LENGTH_LONG).show()
-          log2.w(ex.getMessage, ex)
-          finish()
-      }
+    val clazz = loader.loadClass(DexArguments.proxy)
+    try {
+      proxy = Some(clazz.newInstance.asInstanceOf[ActivityProxy])
+      DexActivity.proxy = proxy map (_ -> this)
+    } catch {
+      case ex: Exception =>
+        Toast.makeText(this,
+          "Unable to load proxy: " + ex.getMessage, Toast.LENGTH_LONG).show()
+        log2.w(ex.getMessage, ex)
+        finish()
     }
 
     proxy foreach (_.onProxyLoad(this))
@@ -75,6 +84,8 @@ trait ExternalDexLoader extends Activity with ExternalResourceLoader {
   override def onDestroy() = {
     proxy foreach (_.onDestroy(this))
     super.onDestroy()
+    proxy foreach (_.onProxyUnload(this))
+    DexActivity.proxy = None
   }
   override def onPause() = {
     proxy foreach (_.onPause(this))
@@ -101,6 +112,20 @@ trait ExternalDexLoader extends Activity with ExternalResourceLoader {
     proxy.fold(super.onOptionsItemSelected(item)) (
       _.onOptionsItemSelected(this, item)) || super.onOptionsItemSelected(item)
   }
+
+  override def onCreateView(name: String, context: Context, attrs: AttributeSet) = try {
+    super.onCreateView(name, context, attrs)
+  } catch {
+    case e: Exception => null
+  }
+
+
+  override def onCreateView(parent: View, name: String, context: Context, attrs: AttributeSet) = try {
+    super.onCreateView(parent, name, context, attrs)
+  } catch {
+    case e: Exception => null
+  }
 }
 
-class DexActivity extends Activity with ExternalDexLoader
+class DexActivity extends Activity with ExternalDexLoader with ViewServerSupport
+class AppCompatDexActivity extends AppCompatActivity with ExternalDexLoader with ViewServerSupport

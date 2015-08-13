@@ -9,6 +9,7 @@ import android.util.{TypedValue, AttributeSet, DisplayMetrics}
 import android.view.LayoutInflater
 
 import android.widget.Toast
+import com.android.debug.hv.ViewServer
 import com.hanhuy.android.common.Logcat
 
 /**
@@ -30,6 +31,10 @@ object LayoutActivity {
     val intent = new Intent(ctx, if (LayoutArguments.appcompat)
       classOf[AppCompatLayoutActivity] else classOf[LayoutActivity])
     intent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP)
+    intent.addFlags(Intent.FLAG_ACTIVITY_EXCLUDE_FROM_RECENTS)
+    intent.addFlags(Intent.FLAG_ACTIVITY_NO_HISTORY)
+    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TASK)
+    intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP)
     intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
     ctx.startActivity(intent)
   }
@@ -65,7 +70,7 @@ trait LayoutActivityArguments extends Activity with ExternalResourceLoader {
       } catch { case e: Exception =>
         val res = resources
         log.w(f"Unable to load requested layout 0x$layout%08x", e)
-        Toast.makeText(this, f"Unable to load requested layout 0x$layout%08x", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, f"Unable to load requested layout 0x$layout%08x: " + e.getMessage, Toast.LENGTH_LONG).show()
         finish()
       }
     }
@@ -111,8 +116,8 @@ trait ExternalResourceLoader extends Activity {
 }
 // currently does not work at all due to mismatch of R and injected resources
 // custom themes that do not depend on AppCompat /may/ work
-class AppCompatLayoutActivity extends AppCompatActivity with LayoutActivityArguments
-class LayoutActivity extends Activity with LayoutActivityArguments
+class AppCompatLayoutActivity extends AppCompatActivity with LayoutActivityArguments with ViewServerSupport
+class LayoutActivity extends Activity with LayoutActivityArguments with ViewServerSupport
 
 class ResourcesWrapper(am: AssetManager, dm: DisplayMetrics, c: Configuration, res: Resources) extends Resources(am, dm, c) {
   override def getIntArray(id: Int) = try {
@@ -353,5 +358,22 @@ class ResourcesWrapper(am: AssetManager, dm: DisplayMetrics, c: Configuration, r
     super.getDrawableForDensity(id, density, theme)
   } catch {
     case e: Resources.NotFoundException => res.getDrawableForDensity(id, density, theme)
+  }
+}
+
+trait ViewServerSupport extends Activity {
+  override def onCreate(savedInstanceState: Bundle) = {
+    super.onCreate(savedInstanceState)
+    ViewServer.get(this).addWindow(this)
+  }
+
+  override def onDestroy() = {
+    super.onDestroy()
+    ViewServer.get(this).removeWindow(this)
+  }
+
+  override def onResume() = {
+    super.onResume()
+    ViewServer.get(this).setFocusedWindow(this)
   }
 }

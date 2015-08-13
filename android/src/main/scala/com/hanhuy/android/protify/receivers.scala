@@ -55,7 +55,16 @@ class DexReceiver extends BroadcastReceiver {
       cls       <- Option(extras.getString(EXTRA_CLASS))
     } {
       log.v("Launching DexActivity " + System.currentTimeMillis)
-      DexActivity.start(context, dex, resources, cls)
+      DexArguments.resources = resources
+      DexArguments.appcompat = extras.getBoolean(EXTRA_APPCOMPAT, false)
+      DexArguments.dex = dex
+      DexArguments.proxy = cls
+
+      log.v("Loading R.txt " + System.currentTimeMillis)
+      rtxtloader.load(extras.getString(EXTRA_RTXT), extras.getString(EXTRA_RTXT_HASH))
+      log.v("Done loading R.txt " + System.currentTimeMillis)
+
+      DexActivity.start(context)
     }
   }
 }

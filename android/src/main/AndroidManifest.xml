@@ -4,6 +4,7 @@
       android:versionCode="1"
       android:versionName="1.0">
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application android:label="@string/protify_app_name_internal" android:icon="@drawable/protify_ic_launcher_internal" android:vmSafeMode="${vmSafeMode}">
         <activity android:name="MainActivity"
                   android:label="@string/protify_app_name_internal">
@@ -13,6 +14,8 @@
             </intent-filter>
         </activity>
         <activity android:name=".DexActivity"
+                  android:label="@string/protify_app_name_internal"/>
+        <activity android:name=".AppCompatDexActivity"
                   android:label="@string/protify_app_name_internal"/>
         <activity android:name=".LayoutActivity"
                   android:label="@string/protify_app_name_internal"/>
