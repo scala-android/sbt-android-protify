@@ -37,9 +37,7 @@ val common = project.in(file("common")).settings(
       """.stripMargin
     IO.writeLines(dest, info :: Nil)
     dest :: Nil
-  },
-  buildInfoKeys := Seq(name, version, scalaVersion, sbtVersion),
-  buildInfoPackage := "com.hanhuy.android.protify"
+  }
 )
 
 val plugin = project.in(file("sbt-plugin")).settings(
