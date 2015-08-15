@@ -7,6 +7,7 @@ import scala.annotation.tailrec
 // val desktop = project.in(file("desktop"))
 
 val rtxtGenerator = TaskKey[Seq[File]]("rtxt-generator")
+val buildInfoGenerator = TaskKey[Seq[File]]("build-info-generator")
 
 val common = project.in(file("common")).settings(
   crossPaths := false,
@@ -23,7 +24,22 @@ val common = project.in(file("common")).settings(
       else Seq(opt)
     }
   },
-  exportJars := true
+  exportJars := true,
+  sourceGenerators in Compile <+= buildInfoGenerator,
+  buildInfoGenerator := {
+    val dest = (sourceManaged in Compile).value / "BuildInfo.java"
+    val info =
+      s"""
+        |package com.hanhuy.android.protify;
+        |public class BuildInfo {
+        |    public static String version = "${version.value}";
+        |}
+      """.stripMargin
+    IO.writeLines(dest, info :: Nil)
+    dest :: Nil
+  },
+  buildInfoKeys := Seq(name, version, scalaVersion, sbtVersion),
+  buildInfoPackage := "com.hanhuy.android.protify"
 )
 
 val plugin = project.in(file("sbt-plugin")).settings(
@@ -42,39 +58,15 @@ val plugin = project.in(file("sbt-plugin")).settings(
   ),
   bintrayOrganization in bintray := None,
   mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value
-).dependsOn(common)
+).dependsOn(common % "provided")
 
 val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   platformTarget in Android := "android-15",
-  lintFlags in Android := {
-    val flags = (lintFlags in Android).value
-    val layout = (projectLayout in Android).value
-    val config = layout.bin / "library-lint.xml"
-    (layout.manifest relativeTo layout.base) foreach { path =>
-      val lintconfig = <lint>
-        <issue id="ParserError">
-          <ignore path={path.getPath} />
-        </issue>
-      </lint>
-      scala.xml.XML.save(config.getAbsolutePath, lintconfig, "utf-8")
-      flags.setDefaultConfiguration(config)
-    }
-    flags
-  },
   autoScalaLibrary := false,
   organization := "com.hanhuy.android",
   name := "protify",
   publishMavenStyle := true,
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
-  javacOptions in (Compile,doc) := {
-    (javacOptions in doc).value flatMap { opt =>
-      if (opt.startsWith("-Xbootclasspath/a"))
-        Seq("-bootclasspath", opt.substring(opt.indexOf(":") + 1))
-      else if (opt == "-g")
-        Seq.empty
-      else Seq(opt)
-    }
-  },
   publishTo := {
     val nexus = "https://oss.sonatype.org/"
     if (isSnapshot.value)
@@ -213,7 +205,7 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
     Nil,
   libraryDependencies ++=
     "com.hanhuy.android" %% "scala-common" % "1.0" ::
-    "com.hanhuy.android" % "viewserver" % "1.0.2" ::
+    "com.hanhuy.android" % "viewserver" % "1.0.3" ::
     "com.android.support" % "appcompat-v7" % "22.2.1" ::
     "com.android.support" % "design" % "22.2.1" ::
     Nil,
@@ -250,4 +242,4 @@ test <<= test in (test1,Android)
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "0.2"
+version in Global := "0.3"

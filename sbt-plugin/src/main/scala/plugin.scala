@@ -20,6 +20,7 @@ import sbt.Cache.IntFormat
 import sbt.Cache.tuple2Format
 
 import language.postfixOps
+import com.hanhuy.android.protify.BuildInfo
 
 /**
  * @author pfnguyen
@@ -47,7 +48,7 @@ object Keys {
 
   lazy val protifySettings: List[Setting[_]] = List(
     ivyConfigurations := overrideConfigs(Protify)(ivyConfigurations.value),
-    libraryDependencies += "com.hanhuy.android" % "protify" % "0.1-SNAPSHOT" % "protify",
+    libraryDependencies += "com.hanhuy.android" % "protify" % BuildInfo.version % "protify",
     protifyDex <<= protifyDexTaskDef() dependsOn (dex in Protify),
     protifyLayout <<= protifyLayoutTaskDef(),
     protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify),
