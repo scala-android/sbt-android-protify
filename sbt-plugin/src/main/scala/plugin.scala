@@ -190,7 +190,7 @@ object Keys {
       val sdk = (sdkPath in Android).value
       val layout = (projectLayout in Android).value
       val rTxt = layout.gen / "R.txt"
-      val rTxtHash = Hash.toHex(Hash(rTxt))
+      val rTxtHash = if (rTxt.isFile) Hash.toHex(Hash(rTxt)) else "no-r.txt"
       val layouts = loadFromContext(protifyLayouts, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
       val themes = loadFromContext(protifyThemes, sbt.Keys.resolvedScoped.value, state.value).getOrElse((Nil,Nil))
       if (layouts.isEmpty || themes._1.isEmpty) {
