@@ -22,6 +22,8 @@ import sbt.Cache.tuple2Format
 import language.postfixOps
 import com.hanhuy.android.protify.BuildInfo
 
+import scala.util.Try
+
 /**
  * @author pfnguyen
  */
@@ -147,15 +149,17 @@ object Keys {
 
     val pkg = (packageForR in Android).value
     val loader = ClasspathUtilities.toLoader((classDirectory in Compile).value)
-    val clazz = loader.loadClass(pkg + ".R$style")
-    val themes = allstyles.map(_._1) filter isTheme flatMap { t =>
-      try {
-        val f = clazz.getDeclaredField(t)
-        Seq((t, f.getInt(null)))
-      } catch {
-        case e: Exception =>
-          log.warn(s"Unable to lookup field: $t, because ${e.getMessage}")
-          Seq.empty
+    // TODO fix me, do not assume exists!
+    val themes = Try(loader.loadClass(pkg + ".R$style")).toOption.fold(Seq.empty[ResourceId]) { clazz =>
+      allstyles.map(_._1) filter isTheme flatMap { t =>
+        try {
+          val f = clazz.getDeclaredField(t)
+          Seq((t, f.getInt(null)))
+        } catch {
+          case e: Exception =>
+            log.warn(s"Unable to lookup field: $t, because ${e.getMessage}")
+            Seq.empty
+        }
       }
     }
     val appcompat = themes filter (t => isAppCompatTheme(t._1))
@@ -194,7 +198,7 @@ object Keys {
       val layouts = loadFromContext(protifyLayouts, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
       val themes = loadFromContext(protifyThemes, sbt.Keys.resolvedScoped.value, state.value).getOrElse((Nil,Nil))
       if (layouts.isEmpty || themes._1.isEmpty) {
-        android.Plugin.fail("No layouts or themes cached, compile first?")
+        android.Plugin.fail("No layouts or themes cached, try again?")
       }
       if (l.isEmpty) {
         log.info("Previewing R.layout." + layouts.head._1)
@@ -256,9 +260,9 @@ object Keys {
       val sdk = (sdkPath in Android).value
       val layout = (projectLayout in Android).value
       val rTxt = layout.gen / "R.txt"
-      val rTxtHash = Hash.toHex(Hash(rTxt))
+      val rTxtHash = if (rTxt.isFile) Hash.toHex(Hash(rTxt)) else "no-r.txt"
       if (dexes.isEmpty) {
-        android.Plugin.fail("No ActivityProxy cached, protify:compile first?")
+        android.Plugin.fail("No ActivityProxy cached, try again.")
       }
       if (dexfile.size != 1) {
         android.Plugin.fail("There must only be one DEX file (multidex not supported)")
