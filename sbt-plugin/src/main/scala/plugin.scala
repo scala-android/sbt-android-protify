@@ -37,10 +37,12 @@ object Keys {
   import Internal._
   type ResourceId = (String,Int)
   val protifyLayout = InputKey[Unit]("protify-layout", "prototype an android layout on device")
-  val protifyDex = InputKey[Unit]("protify-dex", "prototype code on device")
+  val protifyDex = InputKey[Unit]("protify-dex", "prototype code on-device")
+  val protify = TaskKey[Unit]("protify", "live-coding on-device")
 
   private object Internal {
     val Protify = config("protify") extend Compile
+    val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
     val protifyDexes = TaskKey[Seq[String]]("internal-protify-dexes", "internal key: autodetected classes with ActivityProxy")
     val protifyLayouts = TaskKey[Seq[ResourceId]]("internal-protify-layouts", "internal key: autodetected layout files")
     val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("internal-protify-themes", "internal key: platform themes, app themes")
@@ -51,17 +53,20 @@ object Keys {
   lazy val protifySettings: List[Setting[_]] = List(
     ivyConfigurations := overrideConfigs(Protify)(ivyConfigurations.value),
     libraryDependencies += "com.hanhuy.android" % "protify" % BuildInfo.version % "protify",
+    libraryDependencies += "com.hanhuy.android" % "protify-agent" % BuildInfo.version,
     protifyDex <<= protifyDexTaskDef() dependsOn (dex in Protify),
+    protify <<= protifyTaskDef,
     protifyLayout <<= protifyLayoutTaskDef(),
-    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify),
-    protifyThemes <<= discoverThemes storeAs protifyThemes triggeredBy (compile in Compile, compile in Protify),
-    protifyDexes <<= (compile in Protify) map discoverActivityProxies storeAs protifyDexes triggeredBy (compile in Protify),
-    protifyLayoutsAndThemes <<= (protifyLayouts,protifyThemes) map ((_,_)) storeAs protifyLayoutsAndThemes triggeredBy (compile in Compile, compile in Protify),
-    protifyLayouts <<= protifyLayoutsTaskDef storeAs protifyLayouts triggeredBy (compile in Compile, compile in Protify)
+    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify)
   ) ++ inConfig(Protify)(Defaults.compileSettings) ++ inConfig(Protify)(List(
+    protifyPublicResources <<= protifyPublicResourcesTaskDef,
+    protifyDexes <<= (compile in Protify) map discoverActivityProxies storeAs protifyDexes triggeredBy compile,
+    protifyLayouts <<= protifyLayoutsTaskDef storeAs protifyLayouts triggeredBy (compile in Compile, compile),
+    protifyThemes <<= discoverThemes storeAs protifyThemes triggeredBy (compile in Compile, compile),
+    protifyLayoutsAndThemes <<= (protifyLayouts,protifyThemes) map ((_,_)) storeAs protifyLayoutsAndThemes triggeredBy (compile in Compile, compile),
     javacOptions := (javacOptions in Compile).value,
     scalacOptions := (scalacOptions in Compile).value,
-    sourceGenerators <<= (sourceGenerators in Compile),
+    sourceGenerators <<= sourceGenerators in Compile,
     unmanagedSourceDirectories :=
       (unmanagedSourceDirectories in Compile).value ++ {
         val layout = (projectLayout in Android).value
@@ -93,12 +98,14 @@ object Keys {
   ) ++ inConfig(ProtifyInternal)(
     dependencyClasspath <<= dependencyClasspathTaskDef
   ) ++ inConfig(Android)(List(
+    collectResources <<= collectResources dependsOn (protifyPublicResources in Protify),
     cleanForR := {
+      val ignores: Set[AttributeKey[_]] = Set(protifyLayout.key, protifyDex.key, protify.key)
       val d = (classDirectory in Compile).value
       val s = streams.value
       val g = genPath.value
       val roots = executionRoots.value map (_.key)
-      if (!roots.contains(protifyLayout.key) && !roots.contains(protifyDex.key)) {
+      if (!roots.exists(ignores)) {
         FileFunction.cached(s.cacheDirectory / "clean-for-r",
           FilesInfo.hash, FilesInfo.exists) { in =>
           if (in.nonEmpty) {
@@ -178,7 +185,7 @@ object Keys {
   }
 
   def protifyLayoutTaskDef(): Initialize[InputTask[Unit]] = {
-    val parser = loadForParser(protifyLayoutsAndThemes) { (s, stored) =>
+    val parser = loadForParser(protifyLayoutsAndThemes in Protify) { (s, stored) =>
       import sbt.complete.Parser
       import sbt.complete.DefaultParsers._
       val res = stored.getOrElse((Seq.empty[ResourceId],(Seq(("<no themes>",0)),Seq.empty[ResourceId])))
@@ -195,8 +202,8 @@ object Keys {
       val layout = (projectLayout in Android).value
       val rTxt = layout.gen / "R.txt"
       val rTxtHash = if (rTxt.isFile) Hash.toHex(Hash(rTxt)) else "no-r.txt"
-      val layouts = loadFromContext(protifyLayouts, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
-      val themes = loadFromContext(protifyThemes, sbt.Keys.resolvedScoped.value, state.value).getOrElse((Nil,Nil))
+      val layouts = loadFromContext(protifyLayouts in Protify, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
+      val themes = loadFromContext(protifyThemes in Protify, sbt.Keys.resolvedScoped.value, state.value).getOrElse((Nil,Nil))
       if (layouts.isEmpty || themes._1.isEmpty) {
         android.Plugin.fail("No layouts or themes cached, try again?")
       }
@@ -244,7 +251,7 @@ object Keys {
     }
   }
   def protifyDexTaskDef(): Initialize[InputTask[Unit]] = {
-    val parser = loadForParser(protifyDexes) { (s, stored) =>
+    val parser = loadForParser(protifyDexes in Protify) { (s, stored) =>
       import sbt.complete.Parser
       import sbt.complete.DefaultParsers._
       val proxies = stored.getOrElse(Nil)
@@ -252,7 +259,7 @@ object Keys {
     }
     Def.inputTask {
       val l = parser.parsed
-      val dexes = loadFromContext(protifyDexes, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
+      val dexes = loadFromContext(protifyDexes in Protify, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
       val res = (packageResources in Android).value
       val dexfile = (dex in Protify).value ** "*.dex" get
       val log = streams.value.log
@@ -265,7 +272,7 @@ object Keys {
         android.Plugin.fail("No ActivityProxy cached, try again.")
       }
       if (dexfile.size != 1) {
-        android.Plugin.fail("There must only be one DEX file (multidex not supported)")
+        android.Plugin.fail("There must be only one DEX file (multidex not supported)")
       }
       if (l.isEmpty) {
         log.info("Previewing " + dexes.head)
@@ -285,15 +292,15 @@ object Keys {
         f3.delete()
         val cmdS =
           "am"   :: "broadcast"     ::
-            "-a"   :: DEX_INTENT   ::
-            "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/${f.getName}"  ::
-            "-e"   :: EXTRA_RTXT      :: s"/sdcard/protify/${f2.getName}" ::
-            "-e"   :: EXTRA_DEX       :: s"/sdcard/protify/${f3.getName}" ::
-            "-e"   :: EXTRA_CLASS     :: proxyClass                       ::
-            "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                         ::
-            "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
-            "com.hanhuy.android.protify/.DexReceiver"                     ::
-            Nil
+          "-a"   :: DEX_INTENT      ::
+          "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/${f.getName}"  ::
+          "-e"   :: EXTRA_RTXT      :: s"/sdcard/protify/${f2.getName}" ::
+          "-e"   :: EXTRA_DEX       :: s"/sdcard/protify/${f3.getName}" ::
+          "-e"   :: EXTRA_CLASS     :: proxyClass                       ::
+          "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                         ::
+          "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
+          "com.hanhuy.android.protify/.DexReceiver"                     ::
+          Nil
 
         log.debug("Executing: " + cmdS.mkString(" "))
         dev.executeShellCommand("rm -rf /sdcard/protify/*", new Commands.ShellResult)
@@ -310,6 +317,54 @@ object Keys {
       else
         Commands.targetDevice(sdk, log) foreach execute
     }
+  }
+
+  val protifyTaskDef = Def.task {
+    val res = (packageResources in Android).value
+    val dexfile = (dex in Protify).value ** "*.dex" get
+    val st = streams.value
+    val cacheDirectory = st.cacheDirectory / "protify"
+    val log = st.log
+    val all = (allDevices in Android).value
+    val sdk = (sdkPath in Android).value
+    val pkg = (applicationId in Android).value
+    if (dexfile.size != 1) {
+      android.Plugin.fail("There must be only one DEX file (multidex not supported)")
+    }
+    import android.Commands
+    import com.hanhuy.android.protify.Intents._
+    def execute(dev: IDevice): Unit = {
+      import java.io.File.createTempFile
+      val f = createTempFile("resources", ".ap_")
+      val f3 = createTempFile("classes", ".dex")
+      f.delete()
+      f3.delete()
+      val cmdS =
+        "am"   :: "broadcast"     ::
+        "-a"   :: PROTIFY_INTENT  ::
+        "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/$pkg/${f.getName}"  ::
+        "-e"   :: EXTRA_DEX       :: s"/sdcard/protify/$pkg/${f3.getName}" ::
+        s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"  ::
+        Nil
+
+      log.debug("Executing: " + cmdS.mkString(" "))
+      dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg/*", new Commands.ShellResult)
+      android.Tasks.logRate(log, "code deployed:", dexfile.head.length + res.length) {
+        FileFunction.cached(cacheDirectory / dev.getSerialNumber / "res", FilesInfo.lastModified) { in =>
+          dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/$pkg/${f.getName}")
+          in
+        }(Set(res))
+        FileFunction.cached(cacheDirectory / dev.getSerialNumber / "dex", FilesInfo.lastModified) { in =>
+          dev.pushFile(dexfile.head.getAbsolutePath, s"/sdcard/protify/$pkg/${f3.getName}")
+          in
+        }(Set(dexfile.head))
+      }
+      dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
+    }
+    if (all)
+      Commands.deviceList(sdk, log).par foreach execute
+    else
+      Commands.targetDevice(sdk, log) foreach execute
   }
   def discoverActivityProxies(analysis: inc.Analysis): Seq[String] =
     Discovery(Set("com.hanhuy.android.protify.ActivityProxy"), Set.empty)(Tests.allDefs(analysis)).collect({
@@ -379,13 +434,13 @@ object Keys {
     val bldr    = (builder        in Android).value
     val minSdk  = (minSdkVersion  in Android).value
     val lib     = (libraryProject in Android).value
-    val bin     = (binPath        in Android).value
+    val bin     = (binPath        in Android).value / "protify"
     val debug   = (apkbuildDebug  in Android).value
     val pg      = proguard.value
-//    val pd      = predex.value
     val dexOpts = dexAggregate.value
     val s       = streams.value
     val classes = sbt.Keys.`package`.value
+    bin.mkdirs()
     Dex.dex(bldr, dexOpts, Seq.empty, pg, classes, minSdk, lib, bin, debug(), s)
   }
   val dependencyClasspathTaskDef = Def.task {
@@ -408,21 +463,45 @@ object Keys {
         m.organization != "org.scala-lang" &&
           (pvd exists (p => m.organization == p.organization &&
             m.name == p.name))
-      })
+      }) || a.data.getName.startsWith("com.hanhuy.android-protify-agent-")
     }
   }
-  /*
-  val predexTaskDef = Def.task {
-    val minSdk   = (minSdkVersion in Android).value
-    val bldr     = (builder       in Android).value
-    val bin      = (binPath       in Android).value
-    val classes  = sbt.Keys.`package`.value
-    val pg       = proguard.value
-    val s        = streams.value
-    val opts     = dexAggregate.value
-    val inputs   = opts.inputs._2
-    val multiDex = opts.multi
-    Dex.predex(opts, inputs, multiDex, minSdk, classes, pg, bldr, bin, s)
+
+  val protifyPublicResourcesTaskDef = Def.task {
+    val layout = (projectLayout in Android).value
+    val rtxt = layout.gen / "R.txt"
+    val resbase = layout.bin /  "resources" / "res" / "values"
+    resbase.mkdirs()
+    val public = resbase / "public.xml"
+    val idsfile = resbase / "ids.xml"
+    if (rtxt.isFile) {
+      FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.lastModified) { in =>
+        streams.value.log.info("Maintaining resource ID consistency")
+        val (publics, ids) = Using.fileReader(IO.utf8)(rtxt) { in =>
+          IO.foldLines(in, (List("</resources>"), List("</resources>"))) { case ((xs, ys), line) =>
+            val parts = line.split(" ")
+            val cls = parts(1)
+            // hack until a better solution presents itself
+            val nm = if (cls == "style") parts(2).replace('_', '.') else parts(2)
+            val value = parts(3)
+            if ("styleable" != cls)
+              ( s"""  <public type="$cls" name="$nm" id="$value"/>""" :: xs,
+                if ("id" == cls) s"""  <item type="id" name="$nm"/>""" :: ys else ys)
+            else
+              (xs, ys)
+          }
+        }
+        if (publics.length > 1)
+          IO.writeLines(public, """<?xml version="1.0" encoding="utf-8"?>""" :: "<resources>" :: publics)
+        else
+          IO.delete(public)
+        if (ids.length > 1)
+          IO.writeLines(idsfile, """<?xml version="1.0" encoding="utf-8"?>""" :: "<resources>" :: ids)
+        else
+          IO.delete(idsfile)
+        Set(public, idsfile)
+      }(Set(rtxt))
+    }
+    ()
   }
-  */
 }

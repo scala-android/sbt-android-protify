@@ -1,6 +1,7 @@
 package com.hanhuy.android.protify;
 
 public interface Intents {
+    public final static String PROTIFY_INTENT = "com.hanhuy.android.protify.action.PROTIFY";
     public final static String DEX_INTENT = "com.hanhuy.android.protify.action.DEX";
     public final static String LAYOUT_INTENT = "com.hanhuy.android.protify.action.LAYOUT";
     public final static String EXTRA_LAYOUT = "com.hanhuy.android.protify.extra.LAYOUT";

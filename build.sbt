@@ -15,15 +15,6 @@ val common = project.in(file("common")).settings(
   organization := "com.hanhuy.android",
   name := "protify-common",
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
-  javacOptions in (Compile,doc) := {
-    (javacOptions in doc).value flatMap { opt =>
-      if (opt.startsWith("-Xbootclasspath/a"))
-        Seq("-bootclasspath", opt.substring(opt.indexOf(":") + 1))
-      else if (opt == "-g")
-        Seq.empty
-      else Seq(opt)
-    }
-  },
   exportJars := true,
   sourceGenerators in Compile <+= buildInfoGenerator,
   buildInfoGenerator := {
@@ -42,7 +33,7 @@ val common = project.in(file("common")).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.9" % "provided")
+    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.10-SNAPSHOT" % "provided")
 ).settings(
   name := "android-protify",
   organization := "com.hanhuy.sbt",
@@ -88,6 +79,47 @@ val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   licenses := Seq("BSD-style" -> url("http://www.opensource.org/licenses/bsd-license.php")),
   homepage := Some(url("https://github.com/pfn/protify"))
 )
+
+val agent = project.in(file("agent")).settings(androidBuildAar).settings(
+  platformTarget in Android := "android-15",
+  mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value,
+  javacOptions in (Compile,doc) ~= {
+    _.foldRight(List.empty[String]) { (x, a) =>
+      if ("-bootclasspath" == x) {
+        import java.io.File._
+        x :: (System.getProperty("java.home") + separator + "lib" + separator + "rt.jar" + pathSeparator + a.head) :: a.tail
+      }
+      else x :: a
+    }
+  },
+  autoScalaLibrary := false,
+  organization := "com.hanhuy.android",
+  name := "protify-agent",
+  publishMavenStyle := true,
+  javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
+  publishTo := {
+    val nexus = "https://oss.sonatype.org/"
+    if (isSnapshot.value)
+      Some("snapshots" at nexus + "content/repositories/snapshots")
+    else
+      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
+  },
+  pomIncludeRepository := { _ => false },
+  pomExtra :=
+    <scm>
+      <url>git@github.com:pfn/protify.git</url>
+      <connection>scm:git:git@github.com:pfn/protify.git</connection>
+    </scm>
+      <developers>
+        <developer>
+          <id>pfnguyen</id>
+          <name>Perry Nguyen</name>
+          <url>https://github.com/pfn</url>
+        </developer>
+      </developers>,
+  licenses := Seq("BSD-style" -> url("http://www.opensource.org/licenses/bsd-license.php")),
+  homepage := Some(url("https://github.com/pfn/protify"))
+) dependsOn(common % "provided")
 
 val mobile = project.in(file("android")).settings(androidBuild).settings(
   platformTarget in Android := "android-22",
@@ -240,4 +272,4 @@ test <<= test in (test1,Android)
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "0.4"
+version in Global := "0.5-SNAPSHOT"
