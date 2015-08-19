@@ -4,8 +4,6 @@ import android.app.Activity;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Process;
-import android.view.ViewGroup;
-import static android.view.ViewGroup.LayoutParams.*;
 import android.widget.TextView;
 
 /**
@@ -23,7 +21,7 @@ public class ProtifyActivity extends Activity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         TextView tv = new TextView(this);
-        tv.setText("Reloading DEX...");
+        tv.setText("Protifying code...");
         float d = getResources().getDisplayMetrics().density;
         tv.setPadding(asDp(8, d), asDp(8, d), asDp(8, d), asDp(8, d));
         setContentView(tv);

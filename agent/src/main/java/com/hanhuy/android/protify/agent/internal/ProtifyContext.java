@@ -1,27 +1,46 @@
 package com.hanhuy.android.protify.agent.internal;
 
-import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
+import android.util.Log;
 import android.view.ContextThemeWrapper;
-import com.hanhuy.android.protify.agent.Protify;
 
+import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileOutputStream;
+import java.io.IOException;
 import java.lang.reflect.Field;
+import java.lang.reflect.Method;
+import java.nio.channels.FileChannel;
 
 /**
  * @author pfnguyen
  */
 public class ProtifyContext extends ContextWrapper {
+    public final static Method ASSET_MANAGER_ADD_ASSET_PATH;
+    static {
+        try {
+            ASSET_MANAGER_ADD_ASSET_PATH = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
+        } catch (Exception e) {
+            throw new RuntimeException("Unable to find AssetManager.addAssetPath: " + e.getMessage(), e);
+        }
+    }
+
     private final Context base;
-    private Resources resources;
-    private boolean needRecreate;
+    private final Resources resources;
+    private static long resourcesLoaded;
+    private final long resourcesSet;
+    private final static String TAG = "ProtifyContext";
 
     private final static Field CONTEXT_WRAPPER_MBASE;
     private final static Field CONTEXT_THEME_WRAPPER_MRESOURCES;
     private final static Field CONTEXT_THEME_WRAPPER_MTHEME;
+
+    private final static Class<?> APPCOMPAT_CONTEXT_THEME_WRAPPER;
+    private final static Field APPCOMPAT_CONTEXT_THEME_WRAPPER_MTHEME;
 
     static {
         try {
@@ -35,11 +54,32 @@ public class ProtifyContext extends ContextWrapper {
             throw new IllegalStateException(
                     "Unable to access required fields: " + e.getMessage(), e);
         }
+
+        Class<?> appcompatContextThemeWrapper = null;
+        Field appcompatContextThemeWrapperMTheme = null;
+        try {
+            appcompatContextThemeWrapper =
+                    ProtifyContext.class.getClassLoader().loadClass(
+                            "android.support.v7.internal.view.ContextThemeWrapper");
+            appcompatContextThemeWrapperMTheme = appcompatContextThemeWrapper.getDeclaredField("mTheme");
+            appcompatContextThemeWrapperMTheme.setAccessible(true);
+        } catch (Exception e) {
+            Log.v(TAG, "appcompat-v7 not detected");
+        }
+
+        APPCOMPAT_CONTEXT_THEME_WRAPPER = appcompatContextThemeWrapper;
+        APPCOMPAT_CONTEXT_THEME_WRAPPER_MTHEME = appcompatContextThemeWrapperMTheme;
+    }
+
+    private static boolean isAppCompatContextThemeWrapper(Context c) {
+        return APPCOMPAT_CONTEXT_THEME_WRAPPER != null &&
+                APPCOMPAT_CONTEXT_THEME_WRAPPER.isAssignableFrom(c.getClass());
     }
     ProtifyContext(Context base, Resources res) {
         super(base);
         this.base = base;
         this.resources = res;
+        resourcesSet = System.currentTimeMillis();
     }
 
     public static void injectProtifyContext(Context ctx) {
@@ -52,18 +92,59 @@ public class ProtifyContext extends ContextWrapper {
         ContextWrapper c = (ContextWrapper) ctx;
         Context base = c.getBaseContext();
         try {
-            if (base instanceof ProtifyContext)
-                ((ProtifyContext) base).setNeedsRecreate(true);
-            else
-                CONTEXT_WRAPPER_MBASE.set(c, new ProtifyContext(base, r));
+            CONTEXT_WRAPPER_MBASE.set(c, new ProtifyContext(base, r));
 
-            // don't let contextwrapper give us resources or theme
-            CONTEXT_THEME_WRAPPER_MRESOURCES.set(c, null);
-            CONTEXT_THEME_WRAPPER_MTHEME.set(c, null);
+            // clear out cached theme/resources in base
+            if (c instanceof ContextThemeWrapper) {
+                CONTEXT_THEME_WRAPPER_MRESOURCES.set(c, null);
+                CONTEXT_THEME_WRAPPER_MTHEME.set(c, null);
+            } else if (isAppCompatContextThemeWrapper(c)) {
+                APPCOMPAT_CONTEXT_THEME_WRAPPER_MTHEME.set(c, null);
+            }
         } catch (IllegalAccessException e) {
             throw new IllegalStateException(
                     "Unable to update base context: " + e.getMessage(), e);
         }
+    }
+
+    public static void updateResources(Context ctx, String resourcePath, boolean recreate) {
+        File resapk = new File(resourcePath);
+        File cacheres = getResourcesFile(ctx);
+        if (resapk.isFile() && resapk.length() > 0) {
+            try {
+                FileChannel ch = new FileInputStream(resapk).getChannel();
+                FileChannel ch2 = new FileOutputStream(cacheres, false).getChannel();
+                ch.transferTo(0, resapk.length(), ch2);
+                ch.close();
+                ch2.close();
+            } catch (IOException e) {
+                throw new RuntimeException("Cannot copy resource apk: " + e.getMessage(), e);
+            }
+            if (recreate)
+                loadResources(ctx);
+        }
+    }
+
+    public static void loadResources(Context ctx) {
+        File cacheres = getResourcesFile(ctx);
+        if (!cacheres.isFile() || cacheres.length() < 1) return;
+        try {
+            AssetManager am = AssetManager.class.newInstance();
+            ASSET_MANAGER_ADD_ASSET_PATH.invoke(am, cacheres.getAbsolutePath());
+            Resources orig = ctx.getResources();
+            updateResources(new Resources(
+                    am, orig.getDisplayMetrics(), orig.getConfiguration()));
+        } catch (Exception e) {
+            throw new RuntimeException(
+                    "Unable to update application resources: " + e.getMessage(), e);
+        }
+        resourcesLoaded = System.currentTimeMillis();
+    }
+
+    public static File getResourcesFile(Context ctx) {
+        File f = new File(ctx.getFilesDir(), "protify-resources");
+        f.mkdirs();
+        return new File(f, "protify-resources.ap_");
     }
 
     @Override
@@ -76,15 +157,11 @@ public class ProtifyContext extends ContextWrapper {
         return resources != null ? resources.getAssets() : base.getAssets();
     }
 
-    public boolean needsRecreate() { return needRecreate; }
+    public boolean needsRecreate() { return resourcesLoaded > resourcesSet; }
 
-    public void setNeedsRecreate(boolean needRecreate) {
-        this.needRecreate = needRecreate;
-    }
-
-    public static void updateResources(Resources r) {
+    private static void updateResources(Resources r) {
         updatedResources = r;
-        Activity top = Protify.LifecycleListener.getInstance().getTopActivity();
+        Activity top = LifecycleListener.getInstance().getTopActivity();
         if (top != null) top.recreate();
     }
 

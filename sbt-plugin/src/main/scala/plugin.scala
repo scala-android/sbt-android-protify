@@ -39,6 +39,7 @@ object Keys {
   val protifyLayout = InputKey[Unit]("protify-layout", "prototype an android layout on device")
   val protifyDex = InputKey[Unit]("protify-dex", "prototype code on-device")
   val protify = TaskKey[Unit]("protify", "live-coding on-device")
+  val protifyClean = TaskKey[Unit]("protify-clean", "remove delta resources/dex from device")
 
   private object Internal {
     val Protify = config("protify") extend Compile
@@ -56,8 +57,12 @@ object Keys {
     libraryDependencies += "com.hanhuy.android" % "protify-agent" % BuildInfo.version,
     protifyDex <<= protifyDexTaskDef() dependsOn (dex in Protify),
     protify <<= protifyTaskDef,
+    protifyClean <<= protifyCleanTaskDef,
     protifyLayout <<= protifyLayoutTaskDef(),
-    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify)
+    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify),
+    watchSources := watchSources.value filterNot { s =>
+      s relativeTo (target.value / "protify" / "res") isDefined
+    }
   ) ++ inConfig(Protify)(Defaults.compileSettings) ++ inConfig(Protify)(List(
     protifyPublicResources <<= protifyPublicResourcesTaskDef,
     protifyDexes <<= (compile in Protify) map discoverActivityProxies storeAs protifyDexes triggeredBy compile,
@@ -98,6 +103,7 @@ object Keys {
   ) ++ inConfig(ProtifyInternal)(
     dependencyClasspath <<= dependencyClasspathTaskDef
   ) ++ inConfig(Android)(List(
+    extraResDirectories <+= target (_ / "protify" / "res"),
     collectResources <<= collectResources dependsOn (protifyPublicResources in Protify),
     cleanForR := {
       val ignores: Set[AttributeKey[_]] = Set(protifyLayout.key, protifyDex.key, protify.key)
@@ -237,7 +243,7 @@ object Keys {
 
         log.debug("Executing: " + cmdS.mkString(" "))
         dev.executeShellCommand("rm -rf /sdcard/protify/*", new Commands.ShellResult)
-        android.Tasks.logRate(log, "resources deployed:", res.length + rTxt.length) {
+        android.Tasks.logRate(log, s"resources deployed to ${dev.getSerialNumber}:", res.length + rTxt.length) {
           dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/${f.getName}")
           if (rTxt.isFile)
             dev.pushFile(rTxt.getAbsolutePath, s"/sdcard/protify/${f2.getName}")
@@ -304,7 +310,7 @@ object Keys {
 
         log.debug("Executing: " + cmdS.mkString(" "))
         dev.executeShellCommand("rm -rf /sdcard/protify/*", new Commands.ShellResult)
-        android.Tasks.logRate(log, "code deployed:", dexfile.head.length + res.length + rTxt.length) {
+        android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", dexfile.head.length + res.length + rTxt.length) {
           dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/${f.getName}")
           dev.pushFile(dexfile.head.getAbsolutePath, s"/sdcard/protify/${f3.getName}")
           if (rTxt.isFile)
@@ -349,16 +355,59 @@ object Keys {
 
       log.debug("Executing: " + cmdS.mkString(" "))
       dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg/*", new Commands.ShellResult)
-      android.Tasks.logRate(log, "code deployed:", dexfile.head.length + res.length) {
-        FileFunction.cached(cacheDirectory / dev.getSerialNumber / "res", FilesInfo.lastModified) { in =>
-          dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/$pkg/${f.getName}")
-          in
-        }(Set(res))
-        FileFunction.cached(cacheDirectory / dev.getSerialNumber / "dex", FilesInfo.lastModified) { in =>
-          dev.pushFile(dexfile.head.getAbsolutePath, s"/sdcard/protify/$pkg/${f3.getName}")
-          in
-        }(Set(dexfile.head))
+      var pushres = false
+      var pushdex = false
+      FileFunction.cached(cacheDirectory / dev.getSerialNumber / "res", FilesInfo.lastModified) { in =>
+        pushres = true
+        in
+      }(Set(res))
+      FileFunction.cached(cacheDirectory / dev.getSerialNumber / "dex", FilesInfo.lastModified) { in =>
+        pushdex = true
+        in
+      }(Set(dexfile.head))
+      val pushlen = (if (pushres) res.length else 0) + (if (pushdex) dexfile.head.length else 0)
+      if (pushres || pushdex) {
+        android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
+          if (pushres)
+            dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/$pkg/${f.getName}")
+          if (pushdex)
+            dev.pushFile(dexfile.head.getAbsolutePath, s"/sdcard/protify/$pkg/${f3.getName}")
+        }
+        dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
       }
+    }
+    if (all)
+      Commands.deviceList(sdk, log).par foreach execute
+    else
+      Commands.targetDevice(sdk, log) foreach execute
+  }
+  val protifyCleanTaskDef = Def.task {
+    val st = streams.value
+    val cacheDirectory = (streams in protify).value.cacheDirectory / "protify"
+    val log = st.log
+    val all = (allDevices in Android).value
+    val sdk = (sdkPath in Android).value
+    val pkg = (applicationId in Android).value
+    val layout = (projectLayout in Android).value
+    (layout.bin /  "resources" / "res" / "values" / "public.xml").delete()
+    (layout.gen / "R.txt").delete()
+    import android.Commands
+    import com.hanhuy.android.protify.Intents._
+    def execute(dev: IDevice): Unit = {
+      val cmdS =
+        "am"   :: "broadcast"     ::
+        "-a"   :: CLEAN_INTENT    ::
+        s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver" ::
+        Nil
+
+      log.debug("Executing: " + cmdS.mkString(" "))
+      dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg/*", new Commands.ShellResult)
+      FileFunction.cached(cacheDirectory / dev.getSerialNumber / "res", FilesInfo.lastModified) { in =>
+        Set.empty
+      }(Set.empty)
+      FileFunction.cached(cacheDirectory / dev.getSerialNumber / "dex", FilesInfo.lastModified) { in =>
+        Set.empty
+      }(Set.empty)
       dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
     }
     if (all)
@@ -473,7 +522,8 @@ object Keys {
     val resbase = layout.bin /  "resources" / "res" / "values"
     resbase.mkdirs()
     val public = resbase / "public.xml"
-    val idsfile = resbase / "ids.xml"
+    val idsfile = target.value / "protify" / "res" / "values" / "ids.xml"
+    idsfile.getParentFile.mkdirs()
     if (rtxt.isFile) {
       FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.lastModified) { in =>
         streams.value.log.info("Maintaining resource ID consistency")
