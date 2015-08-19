@@ -1,4 +1,4 @@
-addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.10-SNAPSHOT")
+addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.10")
 
 resolvers += Resolver.url(
   "bintray-sbt-plugin-releases",
