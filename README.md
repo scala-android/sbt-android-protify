@@ -8,6 +8,7 @@
 * Scala
 * appcompat-v7, design and support-v4 libraries
 * Most existing android projects
+* Android devices v14+ for live-coding, v4+ for layout and code preview modes
 
 ## Demos:
 
@@ -16,7 +17,7 @@
 
 ## Getting started:
 
-### Protify App
+### Protify App (only required for live-preview)
 
 1. Install sbt from http://scala-sbt.org, homebrew, ports, or your
    package manager of choice
@@ -32,7 +33,7 @@
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
 3. Add the protify plugin:
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "0.3")' > project/plugins.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "0.5")' > project/plugins.sbt`
 4. Add `protifySettings`: `echo protifySettings >> build.sbt`
 5. Run SBT
 6. Select device to run on by using the `devices` and `device` commands. Run
@@ -46,10 +47,20 @@
    optional argument, `appcompat`, declares that the proxy should run within
    AppCompatActivity.
 
+### Live Coding
+
+1. Follow steps above 1-5
+2. Extend `android.app.Application` and register in `AndroidManifest.xml`
+   * in `onCreate` or `attachBaseContext` call
+     `com.hanhuy.android.protify.agent.Protify.install(this)`
+3. `android:run`, and `~protify`
+4. Enjoy
+
 ### Android Studio / Gradle integration
 
 1. Gradle: add a build flavor for `protify`
-2. add the dependency `compile 'com.hanhuy.android:protify:0.3'` to the flavor
+2. add the dependency `compile 'com.hanhuy.android:protify:0.5'` to the flavor
+   * for live-coding, add `compile 'com.hanhuy.android:protify-agent:0.5'`
 3. add the source directory `src/protify/java` to the flavor
 4. sync project in Android Studio
 5. Optionally add `idea-sbt-plugin` to run SBT inside of Android Studio
@@ -58,8 +69,9 @@
 
 1. It works automatically if you're already using `android-sdk-plugin` and SBT
 2. Mark `src/protify/*` as source roots
-3. Add ~/.ivy/cache/com.hanhuy.android/protify/jars/protify-0.3.jar to your
+3. Add `~/.ivy/cache/com.hanhuy.android/protify/jars/protify-0.5.jar` to your
    module dependencies
+   *  For live-coding, add `~/.ivy/cache/com.hanhuy.android/protify-agent/jars/protify-agent-0.5.jar`
 
 ### Vim, etc.
 
