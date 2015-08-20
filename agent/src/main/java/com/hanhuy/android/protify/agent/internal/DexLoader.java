@@ -291,6 +291,7 @@ public class DexLoader {
             }
         }
 
+        // hacked to work on v23+
         /**
          * A wrapper around
          * {@code private static final dalvik.system.DexPathList#makeDexElements}.
@@ -301,9 +302,10 @@ public class DexLoader {
                 throws IllegalAccessException, InvocationTargetException,
                 NoSuchMethodException {
             boolean v23 = Build.VERSION.SDK_INT >= 23;
+            Class<?> listType = v23 ? List.class : ArrayList.class;
             Method makeDexElements =
-                    findMethod(dexPathList, v23 ? "makePathElements" : "makeDexElements", v23 ? List.class : ArrayList.class, File.class,
-                            v23 ? List.class : ArrayList.class);
+                    findMethod(dexPathList, v23 ? "makePathElements" : "makeDexElements",
+                            listType, File.class, listType);
 
             return (Object[]) makeDexElements.invoke(dexPathList, files, optimizedDirectory,
                     suppressedExceptions);

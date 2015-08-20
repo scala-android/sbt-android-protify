@@ -123,6 +123,8 @@ val agent = project.in(file("agent")).settings(androidBuildAar).settings(
 
 val mobile = project.in(file("android")).settings(androidBuild).settings(
   platformTarget in Android := "android-22",
+  versionName in Android := Some(version.value),
+  versionCode in Android := Some(1),
   minSdkVersion in Android := "16",
   targetSdkVersion in Android := "22",
   debugIncludesTests in Android := false,
@@ -272,4 +274,4 @@ test <<= test in (test1,Android)
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "0.6"
+version in Global := "0.7-SNAPSHOT"

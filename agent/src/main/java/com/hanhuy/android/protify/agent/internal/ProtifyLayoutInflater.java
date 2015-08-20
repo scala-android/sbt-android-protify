@@ -79,6 +79,30 @@ public class ProtifyLayoutInflater extends LayoutInflater {
             throw new RuntimeException("Unable to load required classes: " + e.getMessage(), e);
         }
     }
+
+    private static Class<?> findConcreteFetcher(Class<?> fetcherParent, String prefix) {
+        int i = 1;
+        boolean search = true;
+        Class<?> found = null;
+        while (search) {
+            try {
+                Class<?> anonymous = CONTEXT_LOADER.loadClass(prefix + i);
+                if (anonymous != null && fetcherParent.isAssignableFrom(anonymous)) {
+                    found = anonymous;
+                    search = false;
+                }
+                i++;
+            } catch (ClassNotFoundException e) {
+                Log.v(TAG, "Stopped searching for concrete StaticServiceFetcher: " + i);
+                search = false;
+            }
+        }
+        if (found == null) {
+            throw new RuntimeException(
+                    "Unable to find a concrete StaticServiceFetcher after tries: " + i);
+        }
+        return found;
+    }
     public static class V23 {
         private final static Class<?> FETCHER_CLASS;
         private final static Class<?> CONCRETE_FETCHER_CLASS;
@@ -91,33 +115,12 @@ public class ProtifyLayoutInflater extends LayoutInflater {
                 SYSTEM_SERVICE_REGISTRY  = CONTEXT_LOADER.loadClass("android.app.SystemServiceRegistry");
                 FETCHER_CLASS            = CONTEXT_LOADER.loadClass("android.app.SystemServiceRegistry$StaticServiceFetcher");
                 FETCHER_MCACHED_INSTANCE = FETCHER_CLASS.getDeclaredField("mCachedInstance");
+                CONCRETE_FETCHER_CLASS   = findConcreteFetcher(FETCHER_CLASS, "android.app.SystemServiceRegistry$");
                 FETCHER_MCACHED_INSTANCE.setAccessible(true);
                 SYSTEM_SERVICE_REGISTRY_SYSTEM_SERVICE_NAMES    = SYSTEM_SERVICE_REGISTRY.getDeclaredField("SYSTEM_SERVICE_NAMES");
                 SYSTEM_SERVICE_REGISTRY_SYSTEM_SERVICE_FETCHERS = SYSTEM_SERVICE_REGISTRY.getDeclaredField("SYSTEM_SERVICE_FETCHERS");
                 SYSTEM_SERVICE_REGISTRY_SYSTEM_SERVICE_NAMES.setAccessible(true);
                 SYSTEM_SERVICE_REGISTRY_SYSTEM_SERVICE_FETCHERS.setAccessible(true);
-
-                int i = 1;
-                boolean search = true;
-                Class<?> found = null;
-                while (search) {
-                    try {
-                        Class<?> anonymous = CONTEXT_LOADER.loadClass("android.app.SystemServiceRegistry$" + i);
-                        if (anonymous != null && FETCHER_CLASS.isAssignableFrom(anonymous)) {
-                            found = anonymous;
-                            search = false;
-                        }
-                        i++;
-                    } catch (ClassNotFoundException e) {
-                        Log.v(TAG, "Stopped searching for concrete StaticServiceFetcher: " + i);
-                        search = false;
-                    }
-                }
-                if (found == null) {
-                    throw new RuntimeException(
-                            "Unable to find a concrete StaticServiceFetcher after tries: " + i);
-                }
-                CONCRETE_FETCHER_CLASS = found;
             } catch (Exception e) {
                 throw new RuntimeException("Unable to load required fields: " + e.getMessage(), e);
             }
@@ -165,30 +168,9 @@ public class ProtifyLayoutInflater extends LayoutInflater {
                 FETCHER_CLASS                   = CONTEXT_LOADER.loadClass("android.app.ContextImpl$StaticServiceFetcher");
                 CONTEXT_IMPL_SYSTEM_SERVICE_MAP = CONTEXT_IMPL_CLASS.getDeclaredField("SYSTEM_SERVICE_MAP");
                 FETCHER_MCACHED_INSTANCE        = FETCHER_CLASS.getDeclaredField("mCachedInstance");
+                CONCRETE_FETCHER_CLASS          = findConcreteFetcher(FETCHER_CLASS, "android.app.ContextImpl$");
                 FETCHER_MCACHED_INSTANCE.setAccessible(true);
                 CONTEXT_IMPL_SYSTEM_SERVICE_MAP.setAccessible(true);
-
-                int i = 1;
-                boolean search = true;
-                Class<?> found = null;
-                while (search) {
-                    try {
-                        Class<?> anonymous = CONTEXT_LOADER.loadClass("android.app.ContextImpl$" + i);
-                        if (anonymous != null && FETCHER_CLASS.isAssignableFrom(anonymous)) {
-                            found = anonymous;
-                            search = false;
-                        }
-                        i++;
-                    } catch (ClassNotFoundException e) {
-                        Log.v(TAG, "Stopped searching for concrete StaticServiceFetcher: " + i);
-                        search = false;
-                    }
-                }
-                if (found == null) {
-                    throw new RuntimeException(
-                            "Unable to find a concrete StaticServiceFetcher after tries: " + i);
-                }
-                CONCRETE_FETCHER_CLASS = found;
             } catch (Exception e) {
                 throw new RuntimeException("Unable to load required classes: " + e.getMessage(), e);
             }

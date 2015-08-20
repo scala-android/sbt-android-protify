@@ -3,7 +3,6 @@
       package="com.hanhuy.android.protify.agent">
     <uses-sdk android:minSdkVersion="14"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
-    <uses-permission android:name="android.permission.INTERNET"/>
     <application>
         <activity android:name=".internal.ProtifyActivity" android:exported="false"
                 android:theme="@android:style/Theme.DeviceDefault.Light.Dialog.NoActionBar"/>

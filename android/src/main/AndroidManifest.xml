@@ -4,6 +4,7 @@
       android:versionCode="1"
       android:versionName="1.0">
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
+    <!-- for viewserver -->
     <uses-permission android:name="android.permission.INTERNET"/>
     <application android:label="@string/protify_app_name_internal" android:icon="@drawable/protify_ic_launcher_internal" android:vmSafeMode="${vmSafeMode}">
         <activity android:name="MainActivity"
