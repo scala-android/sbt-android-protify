@@ -103,6 +103,19 @@ public class ProtifyLayoutInflater extends LayoutInflater {
         }
         return found;
     }
+    // java hackery at its finest!
+    // uses an anonymous class that extends StaticServiceFetcher
+    // invoke its constructor, replace its mCachedInstance field with
+    // our inflater
+    private static Object newLayoutFetcher(Context c, Class<?> fetcher, Field field)
+            throws NoSuchMethodException, IllegalAccessException,
+            InvocationTargetException, InstantiationException {
+        Constructor<?> ctor = fetcher.getDeclaredConstructor();
+        ctor.setAccessible(true);
+        Object f = ctor.newInstance();
+        field.set(f, new ProtifyLayoutInflater(c));
+        return fetcher;
+    }
     public static class V23 {
         private final static Class<?> FETCHER_CLASS;
         private final static Class<?> CONCRETE_FETCHER_CLASS;
@@ -135,23 +148,11 @@ public class ProtifyLayoutInflater extends LayoutInflater {
             return (Map<Class<?>,String>)SYSTEM_SERVICE_REGISTRY_SYSTEM_SERVICE_NAMES.get(null);
         }
 
-        // java hackery at its finest!
-        // uses an anonymous class that extends StaticServiceFetcher
-        // invoke its constructor, replace its mCachedInstance field with
-        // our inflater
-        private static Object newServiceFetcher(Context c)
-                throws NoSuchMethodException, IllegalAccessException,
-                InvocationTargetException, InstantiationException {
-            Constructor<?> ctor = CONCRETE_FETCHER_CLASS.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            Object fetcher = ctor.newInstance();
-            FETCHER_MCACHED_INSTANCE.set(fetcher, new ProtifyLayoutInflater(c));
-            return fetcher;
-        }
         public static void install(Application c) {
             try {
                 getNamesMap().put(LayoutInflater.class, Context.LAYOUT_INFLATER_SERVICE);
-                getFetchersMap().put(Context.LAYOUT_INFLATER_SERVICE, newServiceFetcher(c));
+                getFetchersMap().put(Context.LAYOUT_INFLATER_SERVICE,
+                        newLayoutFetcher(c, CONCRETE_FETCHER_CLASS, FETCHER_MCACHED_INSTANCE));
             } catch (Exception e) {
                 throw new RuntimeException("Failed to install ProtifyLayoutInflater: " + e.getMessage(), e);
             }
@@ -181,22 +182,10 @@ public class ProtifyLayoutInflater extends LayoutInflater {
             return (Map<String,Object>)CONTEXT_IMPL_SYSTEM_SERVICE_MAP.get(null);
         }
 
-        // java hackery at its finest!
-        // uses an anonymous class that extends StaticServiceFetcher
-        // invoke its constructor, replace its mCachedInstance field with
-        // our inflater
-        private static Object newServiceFetcher(Context c)
-                throws NoSuchMethodException, IllegalAccessException,
-                InvocationTargetException, InstantiationException {
-            Constructor<?> ctor = CONCRETE_FETCHER_CLASS.getDeclaredConstructor();
-            ctor.setAccessible(true);
-            Object fetcher = ctor.newInstance();
-            FETCHER_MCACHED_INSTANCE.set(fetcher, new ProtifyLayoutInflater(c));
-            return fetcher;
-        }
         public static void install(Application c) {
             try {
-                getServiceMap().put(Context.LAYOUT_INFLATER_SERVICE, newServiceFetcher(c));
+                getServiceMap().put(Context.LAYOUT_INFLATER_SERVICE,
+                        newLayoutFetcher(c, CONCRETE_FETCHER_CLASS, FETCHER_MCACHED_INSTANCE));
             } catch (Exception e) {
                 throw new RuntimeException("Failed to install ProtifyLayoutInflater: " + e.getMessage(), e);
             }
