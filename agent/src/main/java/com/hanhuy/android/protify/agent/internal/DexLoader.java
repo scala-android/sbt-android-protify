@@ -300,9 +300,10 @@ public class DexLoader {
                 ArrayList<IOException> suppressedExceptions)
                 throws IllegalAccessException, InvocationTargetException,
                 NoSuchMethodException {
+            boolean v23 = Build.VERSION.SDK_INT >= 23;
             Method makeDexElements =
-                    findMethod(dexPathList, "makeDexElements", ArrayList.class, File.class,
-                            ArrayList.class);
+                    findMethod(dexPathList, v23 ? "makePathElements" : "makeDexElements", v23 ? List.class : ArrayList.class, File.class,
+                            v23 ? List.class : ArrayList.class);
 
             return (Object[]) makeDexElements.invoke(dexPathList, files, optimizedDirectory,
                     suppressedExceptions);
