@@ -83,7 +83,7 @@ object Keys {
           layout.base / "protify"
         )
         @tailrec
-        def sourcesFor(p: ProjectLayout): Seq[File] = layout match {
+        def sourcesFor(p: ProjectLayout): Seq[File] = p match {
           case g: ProjectLayout.Gradle => gradleLike
           case a: ProjectLayout.Ant => antLike
           case w: ProjectLayout.Wrapped => sourcesFor(w.wrapped)
