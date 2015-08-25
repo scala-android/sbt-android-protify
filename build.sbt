@@ -274,4 +274,4 @@ test <<= test in (test1,Android)
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "0.7-SNAPSHOT"
+version in Global := "0.7"

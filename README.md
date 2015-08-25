@@ -27,13 +27,16 @@
 ### Live Preview
 
 1. Install [android-sdk-plugin](https://github.com/pfn/android-sdk-plugin):
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.10")' > ~/.sbt/0.13/plugins/android.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.12")' > ~/.sbt/0.13/plugins/android.sbt`
 2. Start from an existing or new project (for trivial projects):
    `sbt "gen-android ..."` to create a new project, `sbt gen-android-sbt` to
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
+   * Alternatively, use `android-gradle-build` when working with an existing gradle project:
+     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "0.5")' > project/plugins.sbt`
+     * `echo 'object Build extends android.GradleBuild' > project/build.scala`
 3. Add the protify plugin:
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "0.6")' > project/plugins.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "0.6")' >> project/plugins.sbt`
 4. Add `protifySettings`: `echo protifySettings >> build.sbt`
 5. Run SBT
 6. Select device to run on by using the `devices` and `device` commands. Run
