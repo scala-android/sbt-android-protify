@@ -526,13 +526,24 @@ object Keys {
     idsfile.getParentFile.mkdirs()
     if (rtxt.isFile) {
       FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.lastModified) { in =>
+        val values = (resbase ** "values*" ** "*.xml").get
+        import scala.xml._
+        val allstyles = values.flatMap { f =>
+          val xml = XML.loadFile(f)
+          (xml \ "style") map { n =>
+            val nm = n.attribute("name").head.text
+            (nm.replace('.','_'),nm)
+          }
+        }.toMap
+
         streams.value.log.info("Maintaining resource ID consistency")
         val (publics, ids) = Using.fileReader(IO.utf8)(rtxt) { in =>
           IO.foldLines(in, (List("</resources>"), List("</resources>"))) { case ((xs, ys), line) =>
             val parts = line.split(" ")
             val cls = parts(1)
-            // hack until a better solution presents itself
-            val nm = if (cls == "style") parts(2).replace('_', '.') else parts(2)
+            val nm = if (cls == "style") {
+              allstyles.getOrElse(parts(2), parts(2).replace('_', '.'))
+            } else parts(2)
             val value = parts(3)
             if ("styleable" != cls)
               ( s"""  <public type="$cls" name="$nm" id="$value"/>""" :: xs,
