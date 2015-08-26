@@ -39,7 +39,6 @@ object Keys {
   val protifyLayout = InputKey[Unit]("protify-layout", "prototype an android layout on device")
   val protifyDex = InputKey[Unit]("protify-dex", "prototype code on-device")
   val protify = TaskKey[Unit]("protify", "live-coding on-device")
-  val protifyClean = TaskKey[Unit]("protify-clean", "remove delta resources/dex from device")
 
   private object Internal {
     val Protify = config("protify") extend Compile
@@ -52,18 +51,19 @@ object Keys {
   }
 
   lazy val protifySettings: List[Setting[_]] = List(
+    clean <<= clean dependsOn (clean in Protify),
     ivyConfigurations := overrideConfigs(Protify)(ivyConfigurations.value),
     libraryDependencies += "com.hanhuy.android" % "protify" % BuildInfo.version % "protify",
     libraryDependencies += "com.hanhuy.android" % "protify-agent" % BuildInfo.version,
     protifyDex <<= protifyDexTaskDef() dependsOn (dex in Protify),
     protify <<= protifyTaskDef,
-    protifyClean <<= protifyCleanTaskDef,
     protifyLayout <<= protifyLayoutTaskDef(),
     protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify),
     watchSources := watchSources.value filterNot { s =>
       s relativeTo (target.value / "protify" / "res") isDefined
     }
   ) ++ inConfig(Protify)(Defaults.compileSettings) ++ inConfig(Protify)(List(
+    clean <<= protifyCleanTaskDef,
     protifyPublicResources <<= protifyPublicResourcesTaskDef,
     protifyDexes <<= (compile in Protify) map discoverActivityProxies storeAs protifyDexes triggeredBy compile,
     protifyLayouts <<= protifyLayoutsTaskDef storeAs protifyLayouts triggeredBy (compile in Compile, compile),
@@ -401,7 +401,7 @@ object Keys {
         Nil
 
       log.debug("Executing: " + cmdS.mkString(" "))
-      dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg/*", new Commands.ShellResult)
+      dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg", new Commands.ShellResult)
       FileFunction.cached(cacheDirectory / dev.getSerialNumber / "res", FilesInfo.lastModified) { in =>
         Set.empty
       }(Set.empty)
