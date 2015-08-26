@@ -33,10 +33,10 @@
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
    * Alternatively, use `android-gradle-build` when working with an existing gradle project:
-     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "0.5")' > project/plugins.sbt`
+     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "0.6")' > project/plugins.sbt`
      * `echo 'object Build extends android.GradleBuild' > project/build.scala`
 3. Add the protify plugin:
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "0.8")' >> project/plugins.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "0.9")' >> project/plugins.sbt`
 4. Add `protifySettings`: `echo protifySettings >> build.sbt`
 5. Run SBT
 6. Select device to run on by using the `devices` and `device` commands. Run
@@ -59,11 +59,16 @@
 3. `android:run`, and `~protify`
 4. Enjoy
 
+LIMITATIONS:
+  * Deleting a resource will require running `protify:clean` or else the build
+    will break
+  * Singleton state will not be restored upon deploying new dex code.
+
 ### Android Studio / Gradle integration
 
 1. Gradle: add a build flavor for `protify`
-2. add the dependency `compile 'com.hanhuy.android:protify:0.8'` to the flavor
-   * for live-coding, add `compile 'com.hanhuy.android:protify-agent:0.8'`
+2. add the dependency `compile 'com.hanhuy.android:protify:0.9'` to the flavor
+   * for live-coding, add `compile 'com.hanhuy.android:protify-agent:0.9'`
 3. add the source directory `src/protify/java` to the flavor
 4. sync project in Android Studio
 5. Optionally add `idea-sbt-plugin` to run SBT inside of Android Studio
@@ -72,9 +77,9 @@
 
 1. It works automatically if you're already using `android-sdk-plugin` and SBT
 2. Mark `src/protify/*` as source roots
-3. Add `~/.ivy/cache/com.hanhuy.android/protify/jars/protify-0.8.jar` to your
+3. Add `~/.ivy/cache/com.hanhuy.android/protify/jars/protify-0.9.jar` to your
    module dependencies
-   *  For live-coding, add `~/.ivy/cache/com.hanhuy.android/protify-agent/jars/protify-agent-0.8.jar`
+   *  For live-coding, add `~/.ivy/cache/com.hanhuy.android/protify-agent/jars/protify-agent-0.9.jar`
 
 ### Vim, etc.
 
