@@ -114,7 +114,7 @@ public class ProtifyLayoutInflater extends LayoutInflater {
         ctor.setAccessible(true);
         Object f = ctor.newInstance();
         field.set(f, new ProtifyLayoutInflater(c));
-        return fetcher;
+        return f;
     }
     public static class V23 {
         private final static Class<?> FETCHER_CLASS;
