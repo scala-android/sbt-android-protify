@@ -5,6 +5,7 @@ import java.io.File
 import android.Keys.Internal._
 import android.{Aggregate, Dex, Proguard}
 import com.android.ddmlib.IDevice
+import com.android.sdklib.SdkVersionInfo
 import sbt.Def.Initialize
 import sbt._
 import sbt.Keys._
@@ -28,8 +29,14 @@ import scala.util.Try
  * @author pfnguyen
  */
 object Plugin extends AutoPlugin {
-  override def trigger = noTrigger
-  override def requires = plugins.JvmPlugin
+  import Keys.Internal.Protify
+  override def trigger = allRequirements
+  override def requires = android.AndroidPlugin
+
+  override def projectSettings = super.projectSettings ++ Seq(
+    ivyConfigurations := overrideConfigs(Protify)(ivyConfigurations.value)
+  )
+
   val autoImport = Keys
 }
 
@@ -40,7 +47,7 @@ object Keys {
   val protifyDex = InputKey[Unit]("protify-dex", "prototype code on-device")
   val protify = TaskKey[Unit]("protify", "live-coding on-device")
 
-  private object Internal {
+  private[android] object Internal {
     val Protify = config("protify") extend Compile
     val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
     val protifyDexes = TaskKey[Seq[String]]("internal-protify-dexes", "internal key: autodetected classes with ActivityProxy")
@@ -52,7 +59,6 @@ object Keys {
 
   lazy val protifySettings: List[Setting[_]] = List(
     clean <<= clean dependsOn (clean in Protify),
-    ivyConfigurations := overrideConfigs(Protify)(ivyConfigurations.value),
     libraryDependencies += "com.hanhuy.android" % "protify" % BuildInfo.version % "protify",
     libraryDependencies += "com.hanhuy.android" % "protify-agent" % BuildInfo.version,
     protifyDex <<= protifyDexTaskDef() dependsOn (dex in Protify),
@@ -96,7 +102,6 @@ object Keys {
     proguardInputs      <<= proguardInputsTaskDef,
     proguardInputs      <<= proguardInputs dependsOn (sbt.Keys.`package` in Protify),
     proguard            <<= proguardTaskDef,
-//    predex              <<= predexTaskDef,
     dexAggregate        <<= dexAggregateTaskDef,
     dexInputs           <<= dexInputsTaskDef,
     dex                 <<= dexTaskDef
@@ -462,7 +467,7 @@ object Keys {
       dexInputs.value,
       (dexMaxHeap               in Android).value,
       (dexMulti                 in Android).value,
-      file("/"), //(dexMainFileClassesConfig in Android).value,
+      file("/"), // pass a bogus file for main dex list, unused
       (dexMinimizeMainFile      in Android).value,
       (dexAdditionalParams      in Android).value)
   }
@@ -490,7 +495,12 @@ object Keys {
     val s       = streams.value
     val classes = sbt.Keys.`package`.value
     bin.mkdirs()
-    Dex.dex(bldr, dexOpts, Seq.empty, pg, classes, minSdk, lib, bin, debug(), s)
+    val opts = if (dexOpts.multi) {
+      s.log.warn("multi-dex is not supported, falling back to normal dex")
+      dexOpts.copy(multi = false)
+    } else dexOpts
+
+    Dex.dex(bldr, opts, Nil, pg, classes, minSdk, lib, bin, debug(), s)
   }
   val dependencyClasspathTaskDef = Def.task {
     val cj = (classesJar in Android).value

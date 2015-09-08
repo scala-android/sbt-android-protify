@@ -1,4 +1,4 @@
-addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.10")
+addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.12")
 
 {
   val ver = System.getProperty("plugin.version")
