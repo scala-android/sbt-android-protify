@@ -5,7 +5,6 @@ import java.io.File
 import android.Keys.Internal._
 import android.{Aggregate, Dex, Proguard}
 import com.android.ddmlib.IDevice
-import com.android.sdklib.SdkVersionInfo
 import sbt.Def.Initialize
 import sbt._
 import sbt.Keys._
@@ -56,6 +55,9 @@ object Keys {
     val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("internal-protify-layouts-and-themes", "internal key: themes and layouts")
     val ProtifyInternal = config("protify-internal") extend Protify
   }
+
+  private[this] def appInfoDescriptor(target: File) =
+    target / "protify_application_info.txt"
 
   lazy val protifySettings: List[Setting[_]] = List(
     clean <<= clean dependsOn (clean in Protify),
@@ -109,6 +111,54 @@ object Keys {
     dependencyClasspath <<= dependencyClasspathTaskDef
   ) ++ inConfig(Android)(List(
     extraResDirectories <+= target (_ / "protify" / "res"),
+    managedClasspath <+= Def.task {
+      // this hack is required because packageApk doesn't take resources from
+      // application's classes.jar (or it would get lost during proguard,
+      // retrolambda, etc.) Instead, generate a resource-only jar and add it
+      // to the classpath where it will be included.
+      val resPath = (resourceManaged in Protify).value
+      val layout = (projectLayout in Android).value
+      val appInfoFile = appInfoDescriptor(resPath)
+      val jarfile = layout.bin / "protify-generated.jar"
+
+      IO.jar(Seq(appInfoFile) pair flat, jarfile, new java.util.jar.Manifest)
+      Attributed.blank(jarfile)
+    } dependsOn processManifest,
+    processManifest := {
+      val processed = processManifest.value
+      val pkg = packageForR.value
+      val appInfoFile = appInfoDescriptor((resourceManaged in Protify).value)
+      import scala.xml._
+      import scala.xml.transform._
+      object ApplicationTransform extends RewriteRule {
+        import android.Tasks.ANDROID_NS
+        override def transform(n: Node): Seq[Node] = n match {
+          case Elem(prefix, "application", attribs, scope, children @ _*) =>
+            val androidPrefix = scope.getPrefix(ANDROID_NS)
+            val realApplication = attribs.get(ANDROID_NS, n, "name").fold(
+              "android.app.Application") { nm =>
+              val appName = nm.head.text
+              if (appName.startsWith("."))
+                pkg + appName
+              else if (appName.contains("."))
+                appName
+              else
+                pkg + "." + appName
+            }
+            IO.write(appInfoFile, realApplication)
+            val attrs = attribs.filterNot(_.prefixedKey == s"$androidPrefix:name")
+            val withNameAttr = new PrefixedAttribute(androidPrefix,
+              "name", "com.hanhuy.android.protify.agent.ProtifyApplication",
+              attrs.foldLeft(Null: MetaData)((a,b) => a.append(b)))
+            Elem(prefix, "application", withNameAttr, scope, true, children:_*)
+          case x => x
+        }
+      }
+      val root = XML.loadFile(processed)
+      XML.save(processed.getAbsolutePath,
+        new RuleTransformer(ApplicationTransform).apply(root))
+      processed
+    },
     collectResources <<= collectResources dependsOn (protifyPublicResources in Protify),
     cleanForR := {
       val ignores: Set[AttributeKey[_]] = Set(protifyLayout.key, protifyDex.key, protify.key)
@@ -469,6 +519,7 @@ object Keys {
       (dexMulti                 in Android).value,
       file("/"), // pass a bogus file for main dex list, unused
       (dexMinimizeMainFile      in Android).value,
+      (buildTools               in Android).value,
       (dexAdditionalParams      in Android).value)
   }
   private val dexInputsTaskDef = Def.task {

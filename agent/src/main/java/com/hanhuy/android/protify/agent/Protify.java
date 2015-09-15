@@ -11,12 +11,19 @@ import com.hanhuy.android.protify.agent.internal.ProtifyLayoutInflater;
  */
 public class Protify {
 
-    private static boolean installed;
+    static boolean installed;
 
     /**
      * Would be nice, but no, Protify cannot be installed inside of an Activity.
      * It must occur during Application.onCreate or Application.attachBaseContext
+     *
+     * This no longer needs to be called manually, unless one wants to build
+     * with the IDE or gradle and not sbt.
+     *
+     * @deprecated 1.0.0: use automatic installation instead
      */
+    @SuppressWarnings("unused")
+    @Deprecated
     public static void install(Application app) {
         if (installed) return;
         installed = true;

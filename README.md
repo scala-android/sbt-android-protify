@@ -27,7 +27,7 @@
 ### Live Preview
 
 1. Install [android-sdk-plugin](https://github.com/pfn/android-sdk-plugin):
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.12")' > ~/.sbt/0.13/plugins/android.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.14")' > ~/.sbt/0.13/plugins/android.sbt`
 2. Start from an existing or new project (for trivial projects):
    `sbt "gen-android ..."` to create a new project, `sbt gen-android-sbt` to
    generate sbt files in an existing project. Non-trivial projects will need
