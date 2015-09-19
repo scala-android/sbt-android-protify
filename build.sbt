@@ -33,7 +33,7 @@ val common = project.in(file("common")).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.14")
+    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.0-SNAPSHOT")
 ).settings(
   name := "android-protify",
   organization := "com.hanhuy.sbt",
@@ -255,7 +255,7 @@ val test1 = android.Plugin.flavorOf(mobile, "test1").settings(
     "com.android.support.test" % "runner" % "0.3" ::
     "com.android.support.test.espresso" % "espresso-core" % "2.2" ::
     Nil,
-  apkbuildExcludes in Android += "LICENSE.txt",
+  packagingOptions in Android := PackagingOptions(excludes = Seq("LICENSE.txt")),
   proguardOptions in Android ++=
     "-dontwarn junit.**" ::
     "-dontwarn java.beans.**" ::
@@ -274,4 +274,4 @@ test <<= test in (test1,Android)
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.0.0"
+version in Global := "1.1.0-SNAPSHOT"
