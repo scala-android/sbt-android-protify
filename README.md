@@ -48,6 +48,7 @@ LIMITATIONS:
   * Deleting a resource will require running `protify:clean` or else the build
     will break
   * Singleton state will not be restored upon deploying new dex code.
+    (or resources when on device api level <14)
 
 ### Android Studio / Gradle integration
 

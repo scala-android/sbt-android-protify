@@ -56,15 +56,9 @@ public class ProtifyApplication extends Application {
             throw new IllegalStateException(e);
         }
 
-//        Thread.setDefaultUncaughtExceptionHandler(
-//                ExceptionHandler.createExceptionHandler(
-//                        realApplication,
-//                        Thread.getDefaultUncaughtExceptionHandler()));
         if (Build.VERSION.SDK_INT >= 14) {
             realApplication.registerActivityLifecycleCallbacks(
                     LifecycleListener.getInstance());
-            ProtifyLayoutInflater.install(realApplication);
-            ProtifyContext.loadResources(realApplication);
         }
     }
 
@@ -174,8 +168,8 @@ public class ProtifyApplication extends Application {
         }
     }
 
-    private static void installExternalResources(Context context) {
-        File f = ProtifyContext.getResourcesFile(context);
+    public static void installExternalResources(Context context) {
+        File f = ProtifyResources.getResourcesFile(context);
         if (f.isFile() && f.length() > 0) {
             Log.v(TAG, "Installing external resource file: " + f);
             if (Build.VERSION.SDK_INT >= 18)
@@ -183,6 +177,13 @@ public class ProtifyApplication extends Application {
             else
                 V4Resources.install(f.getAbsolutePath());
         }
+        resourceInstallTime = System.currentTimeMillis();
+    }
+
+    private static long resourceInstallTime = 0;
+
+    public static long getResourceInstallTime() {
+        return resourceInstallTime;
     }
 
     private String getResourceAsString(String resource) {
@@ -260,8 +261,10 @@ public class ProtifyApplication extends Application {
                 for (WeakReference<Resources> wr : arrayMap.values()) {
                     Resources resources = wr.get();
                     // Set the AssetManager of the Resources instance to our brand new one
-                    mAssets.set(resources, newAssetManager);
-                    resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
+                    if (resources != null) {
+                        mAssets.set(resources, newAssetManager);
+                        resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
+                    }
                 }
             } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
                     ClassNotFoundException | InvocationTargetException | InstantiationException e) {
@@ -305,8 +308,10 @@ public class ProtifyApplication extends Application {
                 for (WeakReference<Resources> wr : arrayMap.values()) {
                     Resources resources = wr.get();
                     // Set the AssetManager of the Resources instance to our brand new one
-                    mAssets.set(resources, newAssetManager);
-                    resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
+                    if (resources != null) {
+                        mAssets.set(resources, newAssetManager);
+                        resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
+                    }
                 }
             } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
                     ClassNotFoundException | InvocationTargetException | InstantiationException e) {

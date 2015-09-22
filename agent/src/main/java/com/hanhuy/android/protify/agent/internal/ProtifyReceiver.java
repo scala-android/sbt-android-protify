@@ -1,5 +1,6 @@
 package com.hanhuy.android.protify.agent.internal;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -11,6 +12,7 @@ import android.os.Bundle;
 import android.os.Process;
 import android.util.Log;
 import com.hanhuy.android.protify.Intents;
+import com.hanhuy.android.protify.agent.ProtifyApplication;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
@@ -42,7 +44,7 @@ public class ProtifyReceiver extends BroadcastReceiver {
                 }
             } else if (result.resources) {
                 Log.v(TAG, "Updated resources, recreating activities");
-                ProtifyContext.loadResources(context);
+                recreateActivity(top);
                 if (top == null) {
                     ApplicationInfo info = context.getApplicationInfo();
                     PackageManager pm = context.getPackageManager();
@@ -73,7 +75,7 @@ public class ProtifyReceiver extends BroadcastReceiver {
         } else if (Intents.CLEAN_INTENT.equals(action)) {
             Log.v(TAG, "Clearing resources and dex from cache");
             try {
-                ProtifyContext.getResourcesFile(context).delete();
+                ProtifyResources.getResourcesFile(context).delete();
                 File[] files = DexLoader.getDexExtractionDir(context).listFiles();
                 if (files != null) {
                     for (File f : files) {
@@ -99,7 +101,8 @@ public class ProtifyReceiver extends BroadcastReceiver {
             String dexInfo = extras.getString(Intents.EXTRA_DEX_INFO);
             File dexInfoFile = dexInfo == null ? null : new File(dexInfo);
             boolean hasDex = dexInfoFile != null && dexInfoFile.isFile() && dexInfoFile.length() > 0;
-            boolean hasRes = ProtifyContext.updateResources(context, resources, false);
+            boolean hasRes = ProtifyResources.updateResourcesFile(context, resources);
+            if (hasRes) ProtifyApplication.installExternalResources(context);
             if (hasDex) {
                 try {
                     StringWriter sw = new StringWriter();
@@ -165,5 +168,10 @@ public class ProtifyReceiver extends BroadcastReceiver {
             this.resources = resources;
             this.dex = dex;
         }
+    }
+
+    @TargetApi(11)
+    private static void recreateActivity(Activity a) {
+        if (a != null) a.recreate();
     }
 }

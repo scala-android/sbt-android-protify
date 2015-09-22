@@ -25,13 +25,9 @@ public class Protify {
     public static void install(Application app) {
         if (installed) return;
         installed = true;
-//        Thread.setDefaultUncaughtExceptionHandler(
-//                ExceptionHandler.createExceptionHandler(app,
-//                        Thread.getDefaultUncaughtExceptionHandler()));
         if (Build.VERSION.SDK_INT >= 14)
             app.registerActivityLifecycleCallbacks(LifecycleListener.getInstance());
-        ProtifyLayoutInflater.install(app);
-        ProtifyContext.loadResources(app);
+        ProtifyApplication.installExternalResources(app);
         DexLoader.install(app);
     }
 }
