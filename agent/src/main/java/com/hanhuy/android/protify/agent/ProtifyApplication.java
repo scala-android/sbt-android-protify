@@ -50,10 +50,10 @@ public class ProtifyApplication extends Application {
             throw new IllegalStateException(e);
         }
 
-        Thread.setDefaultUncaughtExceptionHandler(
-                ExceptionHandler.createExceptionHandler(
-                        realApplication,
-                        Thread.getDefaultUncaughtExceptionHandler()));
+//        Thread.setDefaultUncaughtExceptionHandler(
+//                ExceptionHandler.createExceptionHandler(
+//                        realApplication,
+//                        Thread.getDefaultUncaughtExceptionHandler()));
         if (Build.VERSION.SDK_INT >= 14)
             realApplication.registerActivityLifecycleCallbacks(
                     LifecycleListener.getInstance());

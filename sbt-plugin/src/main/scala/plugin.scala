@@ -65,12 +65,7 @@ object Keys {
     libraryDependencies += "com.hanhuy.android" % "protify-agent" % BuildInfo.version,
     protify <<= protifyTaskDef,
     protifyLayout <<= protifyLayoutTaskDef(),
-    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Compile),
-    watchSources := watchSources.value filterNot { s =>
-      implicit val out = (outputLayout in Android).value
-      val layout = (projectLayout in Android).value
-      s relativeTo layout.protifyGenRes isDefined
-    }
+    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Compile)
   ) ++ inConfig(Protify)(List(
     clean <<= protifyCleanTaskDef,
     install <<= protifyInstallTaskDef,
@@ -115,11 +110,6 @@ object Keys {
   ) ++ inConfig(ProtifyInternal)(
     dependencyClasspath <<= dependencyClasspathTaskDef
   ) ++ inConfig(Android)(List(
-    extraResDirectories <+= Def.setting {
-      implicit val output = (outputLayout in Android).value
-      val layout = (projectLayout in Android).value
-      layout.protifyGenRes
-    },
     managedClasspath <+= Def.task {
       // this hack is required because packageApk doesn't take resources from
       // application's classes.jar (or it would get lost during proguard,
@@ -206,7 +196,49 @@ object Keys {
             val withNameAttr = new PrefixedAttribute(androidPrefix,
               "name", "com.hanhuy.android.protify.agent.ProtifyApplication",
               attrs.foldLeft(Null: MetaData)((a,b) => a.append(b)))
-            Elem(prefix, "application", withNameAttr, scope, true, children:_*)
+            // ugh, need to create elements instead of xml literals because
+            // we want to allow non-'android' namespace prefixes
+            val activityName = new PrefixedAttribute(androidPrefix,
+              "name", "com.hanhuy.android.protify.agent.internal.ProtifyActivity", Null)
+            val activityExported = new PrefixedAttribute(androidPrefix,
+              "exported", "false", activityName)
+            val activityTheme = new PrefixedAttribute(androidPrefix,
+              "theme", "@style/InternalProtifyDialogTheme", activityExported)
+            val activityE = new Elem(null, "activity", activityTheme, TopScope,
+              minimizeEmpty = true)
+
+//            <activity android:name="com.hanhuy.android.protify.agent.internal.ProtifyActivity"
+//                      android:exported="false"
+//                      android:theme="@style/InternalProtifyDialogTheme"/>
+
+            import com.hanhuy.android.protify.Intents
+            val actionName0 = new PrefixedAttribute(androidPrefix,
+              "name", Intents.PROTIFY_INTENT, Null)
+            val actionName1 = new PrefixedAttribute(androidPrefix,
+              "name", Intents.CLEAN_INTENT, Null)
+            val actionName2 = new PrefixedAttribute(androidPrefix,
+              "name", Intents.INSTALL_INTENT, Null)
+            val intentFilterAction0 = new Elem(null, "action", actionName0, TopScope, minimizeEmpty = true)
+            val intentFilterAction1 = new Elem(null, "action", actionName1, TopScope, minimizeEmpty = true)
+            val intentFilterAction2 = new Elem(null, "action", actionName2, TopScope, minimizeEmpty = true)
+            val intentFilter = new Elem(null, "intent-filter", Null, TopScope, minimizeEmpty = true,
+              intentFilterAction0, intentFilterAction1, intentFilterAction2)
+            val receiverName = new PrefixedAttribute(androidPrefix,
+              "name", "com.hanhuy.android.protify.agent.internal.ProtifyReceiver", Null)
+            val receiverPermission = new PrefixedAttribute(androidPrefix,
+              "permission", "android.permission.INSTALL_PACKAGES", receiverName)
+            val receiverExported = new PrefixedAttribute(androidPrefix,
+              "exported", "true", receiverPermission)
+            val receiverE = new Elem(null, "receiver", receiverExported, TopScope,
+              minimizeEmpty = true, intentFilter)
+//            <receiver android:name="com.hanhuy.android.protify.agent.internal.ProtifyReceiver"
+//                      android:permission="android.permission.INSTALL_PACKAGES"
+//                      android:exported="true">
+//              <intent-filter>
+//                <action android:name="com.hanhuy.android.protify.action.PROTIFY"/>
+//              </intent-filter>
+//            </receiver>
+            Elem(prefix, "application", withNameAttr, scope, true, children :+ activityE :+ receiverE:_*)
           case x => x
         }
       }
@@ -217,12 +249,19 @@ object Keys {
     },
     collectResources <<= collectResources dependsOn (protifyPublicResources in Protify),
     cleanForR := {
-      val ignores: Set[AttributeKey[_]] = Set(protifyLayout.key, protify.key)
+      val ignores: Set[(Option[String],AttributeKey[_])] = Set(
+        (None,               protifyLayout.key),
+        (None,               protify.key),
+        (Some(Protify.name), run.key),
+        (Some(Protify.name), install.key)
+      )
       implicit val o = outputLayout.value
       val l = projectLayout.value
       val d = (classDirectory in Compile).value
       val s = streams.value
-      val roots = executionRoots.value map (_.key)
+
+      val roots = executionRoots.value map (r =>
+        (r.scope.config.toOption.map(_.name),r.key))
       if (!roots.exists(ignores)) {
         FileFunction.cached(s.cacheDirectory / "clean-for-r",
           FilesInfo.hash, FilesInfo.exists) { in =>
@@ -544,8 +583,8 @@ object Keys {
     val pkg = (applicationId in Android).value
     implicit val out = (outputLayout in Android).value
     val layout = (projectLayout in Android).value
-    (layout.mergedRes / "values" / "public.xml").delete()
-    (layout.gen / "R.txt").delete()
+    layout.protifyPublicXml.delete()
+    layout.rTxt.delete()
     import android.Commands
     import com.hanhuy.android.protify.Intents._
     def execute(dev: IDevice): Unit = {
@@ -743,20 +782,24 @@ object Keys {
     implicit val out = (outputLayout in Android).value
     val layout = (projectLayout in Android).value
     val rtxt = layout.gen / "R.txt"
-    val resbase = layout.mergedRes / "values"
-    resbase.mkdirs()
-    val public = resbase / "public.xml"
-    val idsfile = layout.protifyGenRes / "values" / "ids.xml"
+    val public = layout.protifyPublicXml
+    public.getParentFile.mkdirs()
+    val idsfile = layout.protifyIdsXml
     idsfile.getParentFile.mkdirs()
     if (rtxt.isFile) {
       FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.lastModified) { in =>
-        val values = (resbase ** "values*" ** "*.xml").get
+        val values = (layout.mergedRes ** "values*" ** "*.xml").get
         import scala.xml._
-        val allstyles = values.flatMap { f =>
-          val xml = XML.loadFile(f)
-          (xml \ "style") map { n =>
-            val nm = n.attribute("name").head.text
-            (nm.replace('.','_'),nm)
+        val allnames = values.flatMap { f =>
+          if (f.getName == "public.xml") Nil
+          else {
+            val xml = XML.loadFile(f)
+            xml.descendant flatMap { n =>
+              n.attribute("name").map { a =>
+                val nm = a.text
+                (nm.replace('.', '_'), nm)
+              }
+            }
           }
         }.toMap
 
@@ -765,9 +808,7 @@ object Keys {
           IO.foldLines(in, (List("</resources>"), List("</resources>"))) { case ((xs, ys), line) =>
             val parts = line.split(" ")
             val cls = parts(1)
-            val nm = if (cls == "style") {
-              allstyles.getOrElse(parts(2), parts(2).replace('_', '.'))
-            } else parts(2)
+            val nm = allnames.getOrElse(parts(2), parts(2))
             val value = parts(3)
             if ("styleable" != cls)
               ( s"""  <public type="$cls" name="$nm" id="$value"/>""" :: xs,
@@ -796,12 +837,13 @@ object Keys {
     def protifyDexAgent = protify / "agent"
     def protifyDexJar = protify / "protify-dex.jar"
     def protifyDexHash = protify / "protify-dex-hash.txt"
+    def protifyIdsXml = layout.generatedRes / "values" / "ids.xml"
+    def protifyPublicXml = layout.mergedRes / "values" / "public.xml"
     def protifyInstalledHash(dev: IDevice) = {
       val path = protify / "installed" / dev.safeSerial
       path.getParentFile.mkdirs()
       path
     }
-    def protifyGenRes = protify / "res"
     def protifyAppInfoDescriptor = protify / "protify_application_info.txt"
     def protifyDescriptorJar = protify / "protify-descriptor.jar"
   }

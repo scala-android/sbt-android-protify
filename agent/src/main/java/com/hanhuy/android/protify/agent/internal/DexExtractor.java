@@ -57,7 +57,7 @@ public class DexExtractor {
         long currentCrc = getZipCrc(sourceApk);
 
         List<File> files;
-        if (!force && isModified(context, sourceApk, currentCrc)) {
+        if (!force && !isModified(context, sourceApk, currentCrc)) {
             files = loadExistingExtractions(dexDir);
             if (files.isEmpty())
                 files = performExtractions(sourceApk, dexDir);
@@ -128,7 +128,7 @@ public class DexExtractor {
 
         List<File> files = new ArrayList<File>();
 
-        // TODO re-implement extraction into a final ZIP file for v4+ support
+        // TODO re-implement extraction into a final ZIP file for v4-13 support
         final ZipFile apk = new ZipFile(sourceApk);
         try {
             for (Enumeration<? extends ZipEntry> e = apk.entries(); e.hasMoreElements();) {

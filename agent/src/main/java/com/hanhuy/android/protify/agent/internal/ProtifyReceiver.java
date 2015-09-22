@@ -6,6 +6,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.*;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.Process;
 import android.util.Log;
@@ -24,10 +25,13 @@ public class ProtifyReceiver extends BroadcastReceiver {
     private final static String TAG = "ProtifyReceiver";
     @Override
     public void onReceive(Context context, Intent intent) {
-        if (intent != null && Intents.PROTIFY_INTENT.equals(intent.getAction())) {
+        final String action = intent == null ? null : intent.getAction();
+        Log.v(TAG, "Received action: " + action);
+        Activity top = Build.VERSION.SDK_INT < 14 ? null : LifecycleListener.getInstance().getTopActivity();
+        if (Intents.PROTIFY_INTENT.equals(action)) {
             InstallState result = install(intent.getExtras(), context);
-            Activity top = LifecycleListener.getInstance().getTopActivity();
             if (result.dex) {
+                Log.v(TAG, "Updated dex, restarting process");
                 if (top != null) {
                     Intent reset = new Intent(context, ProtifyActivity.class);
                     reset.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
@@ -36,6 +40,7 @@ public class ProtifyReceiver extends BroadcastReceiver {
                     Process.killProcess(Process.myPid());
                 }
             } else if (result.resources) {
+                Log.v(TAG, "Updated resources, recreating activities");
                 ProtifyContext.loadResources(context);
                 if (top == null) {
                     ApplicationInfo info = context.getApplicationInfo();
@@ -58,11 +63,13 @@ public class ProtifyReceiver extends BroadcastReceiver {
                     context.startActivity(bringToFront);
                 }
             }
-        } else if (intent != null && Intents.INSTALL_INTENT.equals(intent.getAction())) {
+        } else if (Intents.INSTALL_INTENT.equals(action)) {
             InstallState result = install(intent.getExtras(), context);
-            if (result.dex || result.resources)
+            if (result.dex || result.resources) {
+                Log.v(TAG, "Installed new resources or dex, restarting process");
                 Process.killProcess(Process.myPid());
-        } else if (intent != null && Intents.CLEAN_INTENT.equals(intent.getAction())) {
+            }
+        } else if (Intents.CLEAN_INTENT.equals(action)) {
             Log.v(TAG, "Clearing resources and dex from cache");
             try {
                 ProtifyContext.getResourcesFile(context).delete();
@@ -75,7 +82,7 @@ public class ProtifyReceiver extends BroadcastReceiver {
             } catch (Throwable t) {
                 // noop don't care
             }
-            if (LifecycleListener.getInstance().getTopActivity() != null) {
+            if (top != null) {
                 Intent reset = new Intent(context, ProtifyActivity.class);
                 reset.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                 context.startActivity(reset);
@@ -92,11 +99,10 @@ public class ProtifyReceiver extends BroadcastReceiver {
             String[] dexNames = extras.getStringArray(Intents.EXTRA_DEX_NAMES);
             boolean hasDex = dex != null && dexNames != null &&
                     dex.length == dexNames.length && dex.length > 0;
-            if (resources != null)
-                ProtifyContext.updateResources(context, resources, false);
-            File resapk = new File(resources);
+            boolean hasRes = ProtifyContext.updateResources(context, resources, false);
             if (hasDex) {
                 try {
+                    // TODO implement copy into a final ZIP file for v4-13 support
                     for (int i = 0; i < dex.length; i++) {
                         Log.v(TAG, "Loading DEX from " + dex[i] + " to " + dexNames[i]);
                         File dexfile = new File(dex[i]);
@@ -112,7 +118,7 @@ public class ProtifyReceiver extends BroadcastReceiver {
                     throw new RuntimeException("Cannot copy DEX: " + e.getMessage(), e);
                 }
             }
-            return new InstallState((resapk.isFile() && resapk.length() > 0), hasDex);
+            return new InstallState(hasRes, hasDex);
         }
         return InstallState.NONE;
     }

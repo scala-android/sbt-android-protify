@@ -108,7 +108,8 @@ public class ProtifyContext extends ContextWrapper {
         }
     }
 
-    public static void updateResources(Context ctx, String resourcePath, boolean recreate) {
+    public static boolean updateResources(Context ctx, String resourcePath, boolean recreate) {
+        if (resourcePath == null) return false;
         File resapk = new File(resourcePath);
         File cacheres = getResourcesFile(ctx);
         if (resapk.isFile() && resapk.length() > 0) {
@@ -123,7 +124,9 @@ public class ProtifyContext extends ContextWrapper {
             }
             if (recreate)
                 loadResources(ctx);
+            return true;
         }
+        return false;
     }
 
     public static void loadResources(Context ctx) {
@@ -162,7 +165,7 @@ public class ProtifyContext extends ContextWrapper {
 
     private static void updateResources(Resources r) {
         updatedResources = r;
-        if (Build.VERSION.SDK_INT >= 11) {
+        if (Build.VERSION.SDK_INT >= 14) {
             Activity top = LifecycleListener.getInstance().getTopActivity();
             if (top != null) top.recreate();
         }
