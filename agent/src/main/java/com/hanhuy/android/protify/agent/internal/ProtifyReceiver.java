@@ -62,7 +62,7 @@ public class ProtifyReceiver extends BroadcastReceiver {
                     }
                 } else {
                     Intent bringToFront = (Intent) top.getIntent().clone();
-                    bringToFront.addFlags(Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
+                    bringToFront.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
                     context.startActivity(bringToFront);
                 }
             }
