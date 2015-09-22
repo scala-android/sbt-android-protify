@@ -10,53 +10,39 @@
 * Kotlin
 * appcompat-v7, design and support-v4 libraries
 * Most existing android projects
-* Android devices v14+ for live-coding, v4+ for layout and code preview modes
+* Android devices v14+ for live-coding
+* Dex sharding for near-instant deployment
 
 ## Demos:
 
-* [Live layout preview](https://www.youtube.com/watch?v=sgT9RA4SONU)
-* [Live code preview](https://youtu.be/g63I87UZ6bg?t=3m10s)
+* [Live coding](https://www.youtube.com/watch?v=4MaGxkqopII)
 
 ## Getting started:
 
-### Protify App (only required for live-preview)
+### Live coding
 
 1. Install sbt from http://scala-sbt.org, homebrew, ports, or your
    package manager of choice
-2. Build the *Protify* *Android* application: `sbt mobile/android:package`
-3. Install APK to all desired devices
-
-### Live Preview
-
-1. Install [android-sdk-plugin](https://github.com/pfn/android-sdk-plugin):
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.4.14")' > ~/.sbt/0.13/plugins/android.sbt`
-2. Start from an existing or new project (for trivial projects):
+2. Install [android-sdk-plugin](https://github.com/pfn/android-sdk-plugin):
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.0")' > ~/.sbt/0.13/plugins/android.sbt`
+3. Start from an existing or new project (for trivial projects):
    `sbt "gen-android ..."` to create a new project, `sbt gen-android-sbt` to
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
    * Alternatively, use `android-gradle-build` when working with an existing gradle project:
-     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "0.6")' > project/plugins.sbt`
+     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "0.9.3")' > project/plugins.sbt`
      * `echo 'object Build extends android.GradleBuild' > project/build.scala`
-3. Add the protify plugin:
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.0.0")' >> project/plugins.sbt`
-4. Add `protifySettings`: `echo protifySettings >> build.sbt`
-5. Run SBT
-6. Select device to run on by using the `devices` and `device` commands. Run
+4. Add the protify plugin:
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.0")' >> project/plugins.sbt`
+5. Add `protifySettings`: `echo protifySettings >> build.sbt`
+6. Run SBT
+7. Select device to run on by using the `devices` and `device` commands. Run
    on all devices by executing `set allDevices in Android := true`
-7. Start protifying: `protify-layout` and `protify-dex`. The former can take an
-   optional layout name followed by a theme name (unqualified, no R.layout or
-   R.style). Appcompat will automatically be loaded if an appcompat theme is
-   detected (custom themes that derive from appcompat themes will also be
-   detected). `protify-dex` takes an argument which is a fully qualified class
-   name that extends from `com.hanhuy.android.protify.ActivityProxy`, an
-   optional argument, `appcompat`, declares that the proxy should run within
-   AppCompatActivity.
-
-### Live Coding
-
-1. Follow steps above 1-5
-2. `android:run`, and `~protify`
-3. Enjoy
+8. `android:run`, and `~protify`
+   * Alternatively, high speed turnaround can be achieved with `protify:install`
+     and `protify:run` to pretend the app is getting updated, rather than
+     using the live-code mechanism.
+9. Enjoy
 
 LIMITATIONS:
   * Deleting a resource will require running `protify:clean` or else the build
@@ -66,20 +52,13 @@ LIMITATIONS:
 
 ### Android Studio / Gradle integration
 
-1. Gradle: add a build flavor for `protify`
-2. add the dependency `compile 'com.hanhuy.android:protify:1.0.0'` to the flavor
-   * for live-coding, add `compile 'com.hanhuy.android:protify-agent:1.0.0'`
-3. add the source directory `src/protify/java` to the flavor
-4. sync project in Android Studio
-5. Optionally add `idea-sbt-plugin` to run SBT inside of Android Studio
+1. sync project in Android Studio
+2. Optionally add `idea-sbt-plugin` to run SBT inside of Android Studio
 
 ### IntelliJ integration
 
 1. It works automatically if you're already using `android-sdk-plugin` and SBT
-2. Mark `src/protify/*` as source roots
-3. Add `~/.ivy/cache/com.hanhuy.android/protify/jars/protify-1.0.0.jar` to your
-   module dependencies
 
 ### Vim, etc.
 
-1. Just do any of the above steps and follow your own workflow.
+1. Just do any of the above getting started steps and follow your own workflow.

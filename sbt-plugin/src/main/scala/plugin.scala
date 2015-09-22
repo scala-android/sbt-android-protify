@@ -1,6 +1,7 @@
 package android.protify
 
 import java.io.File
+import java.net.URLEncoder
 
 import android.Keys.Internal._
 import android.{BuildOutput, Aggregate, Dex, Proguard}
@@ -43,14 +44,13 @@ object Keys {
   import Internal._
   type ResourceId = (String,Int)
   val protifyLayout = InputKey[Unit]("protify-layout", "prototype an android layout on device")
-  val protifyDex = InputKey[Unit]("protify-dex", "prototype code on-device")
   val protify = TaskKey[Unit]("protify", "live-coding on-device")
 
   private[android] object Internal {
     val Protify = config("protify") extend Compile
     val protifyDexAgent = TaskKey[File]("internal-protify-dex-agent", "internal key: dex protify-agent.jar")
+    val protifyDexJar = TaskKey[File]("internal-protify-dex-jar", "internal key: create a jar containing all dexes")
     val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
-    val protifyDexes = TaskKey[Seq[String]]("internal-protify-dexes", "internal key: autodetected classes with ActivityProxy")
     val protifyLayouts = TaskKey[Seq[ResourceId]]("internal-protify-layouts", "internal key: autodetected layout files")
     val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("internal-protify-themes", "internal key: platform themes, app themes")
     val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("internal-protify-layouts-and-themes", "internal key: themes and layouts")
@@ -62,23 +62,25 @@ object Keys {
 
   lazy val protifySettings: List[Setting[_]] = List(
     clean <<= clean dependsOn (clean in Protify),
-    libraryDependencies += "com.hanhuy.android" % "protify" % BuildInfo.version % "protify",
     libraryDependencies += "com.hanhuy.android" % "protify-agent" % BuildInfo.version,
-    protifyDex <<= protifyDexTaskDef() dependsOn (dex in Protify),
     protify <<= protifyTaskDef,
     protifyLayout <<= protifyLayoutTaskDef(),
-    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Protify),
+    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Compile),
     watchSources := watchSources.value filterNot { s =>
-      s relativeTo (target.value / "protify" / "res") isDefined
+      implicit val out = (outputLayout in Android).value
+      val layout = (projectLayout in Android).value
+      s relativeTo layout.protifyGenRes isDefined
     }
-  ) ++ inConfig(Protify)(Defaults.compileSettings) ++ inConfig(Protify)(List(
+  ) ++ inConfig(Protify)(List(
     clean <<= protifyCleanTaskDef,
+    install <<= protifyInstallTaskDef,
+    run <<= protifyRunTaskDef,
     protifyDexAgent <<= protifyDexAgentTaskDef,
+    protifyDexJar <<= protifyDexJarTaskDef,
     protifyPublicResources <<= protifyPublicResourcesTaskDef,
-    protifyDexes <<= (compile in Protify) map discoverActivityProxies storeAs protifyDexes triggeredBy compile,
-    protifyLayouts <<= protifyLayoutsTaskDef storeAs protifyLayouts triggeredBy (compile in Compile, compile),
-    protifyThemes <<= discoverThemes storeAs protifyThemes triggeredBy (compile in Compile, compile),
-    protifyLayoutsAndThemes <<= (protifyLayouts,protifyThemes) map ((_,_)) storeAs protifyLayoutsAndThemes triggeredBy (compile in Compile, compile),
+    protifyLayouts <<= protifyLayoutsTaskDef storeAs protifyLayouts triggeredBy (compile in Compile),
+    protifyThemes <<= discoverThemes storeAs protifyThemes triggeredBy (compile in Compile),
+    protifyLayoutsAndThemes <<= (protifyLayouts,protifyThemes) map ((_,_)) storeAs protifyLayoutsAndThemes triggeredBy (compile in Compile),
     javacOptions := (javacOptions in Compile).value,
     scalacOptions := (scalacOptions in Compile).value,
     sourceGenerators <<= sourceGenerators in Compile,
@@ -104,7 +106,7 @@ object Keys {
     proguardOptions      += "-keep public class * extends com.hanhuy.android.protify.ActivityProxy { *; }",
     proguardAggregate   <<= proguardAggregateTaskDef,
     proguardInputs      <<= proguardInputsTaskDef,
-    proguardInputs      <<= proguardInputs dependsOn (packageT in Protify),
+    proguardInputs      <<= proguardInputs dependsOn (packageT in Compile),
     proguard            <<= proguardTaskDef,
     predex              <<= predexTaskDef,
     dexAggregate        <<= dexAggregateTaskDef,
@@ -113,7 +115,11 @@ object Keys {
   ) ++ inConfig(ProtifyInternal)(
     dependencyClasspath <<= dependencyClasspathTaskDef
   ) ++ inConfig(Android)(List(
-    extraResDirectories <+= target (_ / "protify" / "res"),
+    extraResDirectories <+= Def.setting {
+      implicit val output = (outputLayout in Android).value
+      val layout = (projectLayout in Android).value
+      layout.protifyGenRes
+    },
     managedClasspath <+= Def.task {
       // this hack is required because packageApk doesn't take resources from
       // application's classes.jar (or it would get lost during proguard,
@@ -123,7 +129,7 @@ object Keys {
       implicit val output = (outputLayout in Android).value
       val layout = (projectLayout in Android).value
       val appInfoFile = appInfoDescriptor(resPath)
-      val jarfile = layout.protify / "protify-generated.jar"
+      val jarfile = layout.protifyDescriptorJar
 
       IO.jar(Seq(appInfoFile) pair flat, jarfile, new java.util.jar.Manifest)
       Attributed.blank(jarfile)
@@ -132,15 +138,47 @@ object Keys {
       val debug = apkbuildDebug.value()
       if (debug) Def.task {
         Aggregate.Apkbuild(packagingOptions.value,
-          apkbuildDebug.value(), (protifyDexAgent in Protify).value, Nil,
+          debug, (protifyDexAgent in Protify).value, Nil,
           collectJni.value, resourceShrinker.value)
 
       } else Def.task {
         Aggregate.Apkbuild(packagingOptions.value,
-          apkbuildDebug.value(), dex.value, predex.value,
+          debug, dex.value, predex.value,
           collectJni.value, resourceShrinker.value)
 
       }
+    },
+    apkbuild := {
+      implicit val output = outputLayout.value
+      val layout = projectLayout.value
+      val a = apkbuildAggregate.value
+      val n = name.value
+      val u = (unmanagedJars in Compile).value
+      val m = managedClasspath.value
+      val dcp = (dependencyClasspath in Compile).value
+      val dcpAg = m ++ u ++ dcp
+      val dexjar = (protifyDexJar in Protify).value
+      val s = streams.value
+      val logger = ilogger.value(s.log)
+      android.Packaging.apkbuild(builder.value,
+        if (a.apkbuildDebug) Seq(Attributed.blank(dexjar)) else Nil, Nil, dcpAg,
+        libraryProject.value, a.packagingOptions, a.resourceShrinker,
+        a.dex, a.predex, a.collectJni,
+        layout.collectJni, layout.resources, a.apkbuildDebug,
+        layout.unsignedApk(a.apkbuildDebug, n), logger, s)
+    },
+    install := {
+      val all = allDevices.value
+      implicit val output = outputLayout.value
+      val layout = projectLayout.value
+      val s = streams.value
+      install.value
+      def installed(d: IDevice): Unit =
+        IO.copyFile(layout.protifyDexHash, layout.protifyInstalledHash(d))
+
+      if (all) android.Commands.deviceList(sdkPath.value, s.log) foreach installed
+      else android.Commands.targetDevice(sdkPath.value, s.log) foreach installed
+      ()
     },
     processManifest := {
       val processed = processManifest.value
@@ -179,7 +217,7 @@ object Keys {
     },
     collectResources <<= collectResources dependsOn (protifyPublicResources in Protify),
     cleanForR := {
-      val ignores: Set[AttributeKey[_]] = Set(protifyLayout.key, protifyDex.key, protify.key)
+      val ignores: Set[AttributeKey[_]] = Set(protifyLayout.key, protify.key)
       implicit val o = outputLayout.value
       val l = projectLayout.value
       val d = (classDirectory in Compile).value
@@ -331,131 +369,172 @@ object Keys {
         Commands.targetDevice(sdk, log) foreach execute
     }
   }
-  def protifyDexTaskDef(): Initialize[InputTask[Unit]] = {
-    val parser = loadForParser(protifyDexes in Protify) { (s, stored) =>
-      import sbt.complete.Parser
-      import sbt.complete.DefaultParsers._
-      val proxies = stored.getOrElse(Nil)
-      EOF.map(_ => None) | (Space ~> Parser.opt(token(NotSpace examples proxies.toSet) ~ Parser.opt((Space ~> token("appcompat")) <~ SpaceClass.*)))
-    }
-    Def.inputTask {
-      val l = parser.parsed
-      val dexes = loadFromContext(protifyDexes in Protify, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
-      val res = (packageResources in Android).value
-      val dexfile = (dex in Protify).value ** "*.dex" get
-      val log = streams.value.log
-      val all = (allDevices in Android).value
-      val sdk = (sdkPath in Android).value
-      val layout = (projectLayout in Android).value
-      val rTxt = layout.gen / "R.txt"
-      val rTxtHash = if (rTxt.isFile) Hash.toHex(Hash(rTxt)) else "no-r.txt"
-      if (dexes.isEmpty) {
-        android.Plugin.fail("No ActivityProxy cached, try again.")
-      }
-      if (dexfile.size != 1) {
-        android.Plugin.fail("There must be only one DEX file (multidex not supported)")
-      }
-      if (l.isEmpty) {
-        log.info("Previewing " + dexes.head)
-      }
-      log.debug("available proxies: " + dexes)
-      val proxyClass = l.fold(dexes.head)(_._1)
-      import android.Commands
-      import com.hanhuy.android.protify.Intents._
-      val isAppcompat = l.fold(false)(_._2.exists(_ == "appcompat"))
-      def execute(dev: IDevice): Unit = {
-        import java.io.File.createTempFile
-        val f = createTempFile("resources", ".ap_")
-        val f2 = createTempFile("RES", ".txt")
-        val f3 = createTempFile("classes", ".dex")
-        f.delete()
-        f2.delete()
-        f3.delete()
-        val cmdS =
-          "am"   :: "broadcast"     ::
-          "-a"   :: DEX_INTENT      ::
-          "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/${f.getName}"  ::
-          "-e"   :: EXTRA_RTXT      :: s"/sdcard/protify/${f2.getName}" ::
-          "-e"   :: EXTRA_DEX       :: s"/sdcard/protify/${f3.getName}" ::
-          "-e"   :: EXTRA_CLASS     :: proxyClass                       ::
-          "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                         ::
-          "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
-          "com.hanhuy.android.protify/.DexReceiver"                     ::
-          Nil
 
-        log.debug("Executing: " + cmdS.mkString(" "))
-        dev.executeShellCommand("rm -rf /sdcard/protify/*", new Commands.ShellResult)
-        android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", dexfile.head.length + res.length + rTxt.length) {
-          dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/${f.getName}")
-          dev.pushFile(dexfile.head.getAbsolutePath, s"/sdcard/protify/${f3.getName}")
-          if (rTxt.isFile)
-            dev.pushFile(rTxt.getAbsolutePath, s"/sdcard/protify/${f2.getName}")
-        }
-        dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
+  private[this] def doInstall(intent: String,
+                              layout: ProjectLayout,
+                              pkg: String,
+                              res: File,
+                              dexfile: Seq[File],
+                              predexes: Seq[File],
+                              st: sbt.Keys.TaskStreams)(implicit m: ProjectLayout => BuildOutput): IDevice => Unit = {
+    val dexfiles = dexfile ++ predexes
+    val dexfileHashes = dexfiles map (f => (f, Hash.toHex(Hash(f))))
+    val cacheDirectory = st.cacheDirectory / "protify"
+    val log = st.log
+    import com.hanhuy.android.protify.Intents._
+
+    dev => {
+      import java.io.File.createTempFile
+
+      val installHash = layout.protifyInstalledHash(dev)
+      if (!installHash.isFile)
+        android.Plugin.fail(s"Application has not been installed to ${dev.getSerialNumber}, android:install first")
+      val installed = IO.readLines(installHash)
+      val hashes = installed.map(_.split(":")(1)).toSet
+      val topush = dexfileHashes.filterNot(d => hashes(d._2))
+
+      val dexlist = topush map { case (p, _) =>
+        val t = createTempFile("classes", ".dex")
+        t.delete()
+        (p, s"/sdcard/protify/$pkg/${t.getName}")
       }
-      if (all)
-        Commands.deviceList(sdk, log).par foreach execute
-      else
-        Commands.targetDevice(sdk, log) foreach execute
+      val f = createTempFile("resources", ".ap_")
+      f.delete()
+      val cmdS =
+        "am"   :: "broadcast"     ::
+        "-a"   :: intent          ::
+        "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/$pkg/${f.getName}"    ::
+        Nil
+
+      val targetS =
+        s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"    ::
+        Nil
+
+      val dexS =
+        "--esa" :: EXTRA_DEX       :: dexlist.map(_._2).mkString(",")         ::
+        "--esa" :: EXTRA_DEX_NAMES :: dexlist.map(_._1.getName).mkString(",") ::
+        Nil
+
+      val actualS = cmdS ++ (if (topush.nonEmpty) dexS else Nil) ++ targetS
+
+      log.debug("Executing: " + actualS.mkString(" "))
+
+      dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg/*", new android.Commands.ShellResult)
+      var pushres = false
+      var pushdex = false
+      FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
+        pushres = true
+        in
+      }(Set(res))
+      pushdex = dexlist.nonEmpty
+      val pushlen = (if (pushres) res.length else 0) + (if (pushdex) topush.map(_._1.length).sum else 0)
+      if (pushres || pushdex) {
+        android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
+          if (pushres)
+            dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/$pkg/${f.getName}")
+          if (pushdex) {
+            dexlist.foreach { case (d, p) =>
+              dev.pushFile(d.getAbsolutePath, p)
+            }
+          }
+        }
+        dev.executeShellCommand(actualS.mkString(" "), new android.Commands.ShellResult)
+      }
+      // TODO remove old entries
+      IO.writeLines(layout.protifyInstalledHash(dev),
+        (topush map (t => t._1.getName + ":" + t._2)) ++ installed)
     }
   }
 
   val protifyTaskDef = Def.task {
     val res = (packageResources in Android).value
-    val dexfile = (dex in Protify).value ** "*.dex" get
-    val st = streams.value
-    val cacheDirectory = st.cacheDirectory / "protify"
-    val log = st.log
+    val layout = (projectLayout in Android).value
+    implicit val output = (outputLayout in Android).value
     val all = (allDevices in Android).value
     val sdk = (sdkPath in Android).value
     val pkg = (applicationId in Android).value
-    if (dexfile.size != 1) {
-      android.Plugin.fail("There must be only one DEX file (multidex not supported)")
-    }
-    import android.Commands
-    import com.hanhuy.android.protify.Intents._
-    def execute(dev: IDevice): Unit = {
-      import java.io.File.createTempFile
-      val f = createTempFile("resources", ".ap_")
-      val f3 = createTempFile("classes", ".dex")
-      f.delete()
-      f3.delete()
-      val cmdS =
-        "am"   :: "broadcast"     ::
-        "-a"   :: PROTIFY_INTENT  ::
-        "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/$pkg/${f.getName}"  ::
-        "-e"   :: EXTRA_DEX       :: s"/sdcard/protify/$pkg/${f3.getName}" ::
-        s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"  ::
-        Nil
+    val st = streams.value
+    val dexfile = (dex in Protify).value * "*.dex" get
+    val predexes = (predex in Protify).value flatMap (_._2 * "*.dex" get)
 
-      log.debug("Executing: " + cmdS.mkString(" "))
-      dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg/*", new Commands.ShellResult)
-      var pushres = false
-      var pushdex = false
-      FileFunction.cached(cacheDirectory / dev.getSerialNumber / "res", FilesInfo.lastModified) { in =>
-        pushres = true
-        in
-      }(Set(res))
-      FileFunction.cached(cacheDirectory / dev.getSerialNumber / "dex", FilesInfo.lastModified) { in =>
-        pushdex = true
-        in
-      }(Set(dexfile.head))
-      val pushlen = (if (pushres) res.length else 0) + (if (pushdex) dexfile.head.length else 0)
-      if (pushres || pushdex) {
-        android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
-          if (pushres)
-            dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/$pkg/${f.getName}")
-          if (pushdex)
-            dev.pushFile(dexfile.head.getAbsolutePath, s"/sdcard/protify/$pkg/${f3.getName}")
-        }
-        dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
-      }
-    }
+    import com.hanhuy.android.protify.Intents
+    val execute = doInstall(Intents.PROTIFY_INTENT, layout, pkg, res, dexfile, predexes, st)
+    import android.Commands
+
     if (all)
-      Commands.deviceList(sdk, log).par foreach execute
+      Commands.deviceList(sdk, st.log).par foreach execute
     else
-      Commands.targetDevice(sdk, log) foreach execute
+      Commands.targetDevice(sdk, st.log) foreach execute
   }
+  val protifyInstallTaskDef = Def.task {
+    val res = (packageResources in Android).value
+    val layout = (projectLayout in Android).value
+    implicit val output = (outputLayout in Android).value
+    val all = (allDevices in Android).value
+    val sdk = (sdkPath in Android).value
+    val pkg = (applicationId in Android).value
+    val st = streams.value
+    val dexfile = (dex in Protify).value * "*.dex" get
+    val predexes = (predex in Protify).value flatMap (_._2 * "*.dex" get)
+
+    import com.hanhuy.android.protify.Intents
+    val execute = doInstall(Intents.INSTALL_INTENT, layout, pkg, res, dexfile, predexes, st)
+    import android.Commands
+
+    if (all)
+      Commands.deviceList(sdk, st.log).par foreach execute
+    else
+      Commands.targetDevice(sdk, st.log) foreach execute
+  }
+  val protifyRunTaskDef: Def.Initialize[InputTask[Unit]] = Def.inputTask {
+    val k = (sdkPath in Android).value
+    val l = (projectLayout in Android).value
+    val p = (applicationId in Android).value
+    val s = streams.value
+    val all = (allDevices in Android).value
+    val isLib = (libraryProject in Android).value
+    implicit val output = (outputLayout in Android).value
+    if (isLib)
+      android.Plugin.fail("This project is not runnable, it has set 'libraryProject in Android := true")
+
+    val r = Def.spaceDelimited().parsed
+    val manifestXml = l.processedManifest
+    import scala.xml.XML
+    import android.Tasks.ANDROID_NS
+    import android.Commands
+    val m = XML.loadFile(manifestXml)
+    // if an arg is specified, try to launch that
+    (if (r.isEmpty) None else Some(r mkString " ")) orElse ((m \\ "activity") find {
+      // runs the first-found activity
+      a => (a \ "intent-filter") exists { filter =>
+        val attrpath = "@{%s}name" format ANDROID_NS
+        (filter \\ attrpath) exists (_.text == "android.intent.action.MAIN")
+      }
+    } map { activity =>
+      val name = activity.attribute(ANDROID_NS, "name") get 0 text
+
+      "%s/%s" format (p, if (name.indexOf(".") == -1) "." + name else name)
+    }) match {
+      case Some(intent) =>
+        val receiver = new Commands.ShellLogging(l => s.log.info(l))
+        def execute(d: IDevice): Unit = {
+          val command = "am start -n %s" format intent
+          s.log.info(s"Running on ${d.getProperty(IDevice.PROP_DEVICE_MODEL)} (${d.getSerialNumber})...")
+          s.log.debug("Executing [%s]" format command)
+          d.executeShellCommand(command, receiver)
+          s.log.debug("run command executed")
+        }
+        if (all)
+          Commands.deviceList(k, s.log).par foreach execute
+        else
+          Commands.targetDevice(k, s.log) foreach execute
+      case None =>
+        android.Plugin.fail(
+          "No activity found with action 'android.intent.action.MAIN'")
+    }
+
+    ()
+  } dependsOn install
   val protifyCleanTaskDef = Def.task {
     val st = streams.value
     val cacheDirectory = (streams in protify).value.cacheDirectory / "protify"
@@ -478,13 +557,14 @@ object Keys {
 
       log.debug("Executing: " + cmdS.mkString(" "))
       dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg", new Commands.ShellResult)
-      FileFunction.cached(cacheDirectory / dev.getSerialNumber / "res", FilesInfo.lastModified) { in =>
+      FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
         Set.empty
       }(Set.empty)
-      FileFunction.cached(cacheDirectory / dev.getSerialNumber / "dex", FilesInfo.lastModified) { in =>
+      FileFunction.cached(cacheDirectory / dev.safeSerial / "dex", FilesInfo.lastModified) { in =>
         Set.empty
       }(Set.empty)
       dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
+      IO.copyFile(layout.protifyDexHash, layout.protifyInstalledHash(dev))
     }
     Try {
       if (all)
@@ -519,7 +599,7 @@ object Keys {
     val debug     = (apkbuildDebug       in Android).value
     val d         = (dependencyClasspath in ProtifyInternal).value
     val pgOptions = proguardOptions.value
-    val c         = packageT.value
+    val c         = (packageT in Compile).value
     val st        = streams.value
     Proguard.proguardInputs(
       u, pgOptions, pgConfig, l, d, p, x, c, s, pc, debug(), st)
@@ -554,7 +634,7 @@ object Keys {
     val multiDex = (dexMulti             in Android).value
     val debug    = (apkbuildDebug        in Android).value
     val deps     = (dependencyClasspath  in ProtifyInternal).value
-    val classJar = packageT.value
+    val classJar = (packageT in Compile).value
     val pa       = proguardAggregate.value
     val in       = proguardInputs.value
     val progOut  = proguard.value
@@ -566,7 +646,7 @@ object Keys {
     val layout = (projectLayout in Android).value
     val opts = dexAggregate.value
     val inputs = opts.inputs._2
-    val classes = packageT.value
+    val classes = (packageT in Compile).value
     val pg = proguard.value
     val bldr = (builder in Android).value
     val s = streams.value
@@ -592,6 +672,30 @@ object Keys {
     Dex.dex(bldr, dexOpts.copy(multi = false, inputs = (false,agentJar :: Nil)),
       Nil, pg, true, lib, bin, false, debug, s)
   }
+  private val protifyDexJarTaskDef = Def.task {
+    implicit val out = (outputLayout in Android).value
+    val layout = (projectLayout in Android).value
+
+    val dx = (dex.value * "*.dex" get) map { f =>
+      (f, s"protify-dex/${f.getName}")
+    }
+    val pd = predex.value.flatMap(_._2 * "*.dex" get) map { f =>
+      val name = f.getParentFile.getName.dropRight(4) // ".jar"
+      (f, s"protify-dex/$name.dex")
+    }
+
+    val prefixlen = "protify-dex/".length
+
+    val hashes = (dx ++ pd) map { case (f, path) =>
+      path.substring(prefixlen) + ":" + Hash.toHex(Hash(f))
+    }
+
+    IO.writeLines(layout.protifyDexHash, hashes)
+
+    IO.jar(dx ++ pd, layout.protifyDexJar, new java.util.jar.Manifest)
+
+    layout.protifyDexJar
+  }
   private val dexTaskDef = Def.task {
     implicit val out = (outputLayout in Android).value
     val pd      = predex.value
@@ -601,20 +705,19 @@ object Keys {
     val bin     = layout.protifyDex
     val debug   = (apkbuildDebug  in Android).value()
     val legacy  = (dexLegacyMode in Android).value
-    val shard   = (dexShards in Android).value
     val pg      = proguard.value
     val dexOpts = dexAggregate.value
     val s       = streams.value
     bin.mkdirs()
 
     Dex.dex(bldr, dexOpts.copy(multi = true), pd, pg,
-      !debug && legacy, lib, bin, debug || shard, debug, s)
+      !debug && legacy, lib, bin, debug, debug, s)
   }
   val dependencyClasspathTaskDef = Def.task {
     implicit val out = (outputLayout in Android).value
     val layout = (projectLayout in Android).value
     val cj = layout.classesJar
-    val cp = (dependencyClasspath in Protify).value
+    val cp = (dependencyClasspath in Compile).value
     val d  = libraryDependencies.value
     val s  = streams.value
     s.log.debug("Filtering compile:dependency-classpath from: " + cp)
@@ -643,7 +746,7 @@ object Keys {
     val resbase = layout.mergedRes / "values"
     resbase.mkdirs()
     val public = resbase / "public.xml"
-    val idsfile = target.value / "protify" / "res" / "values" / "ids.xml"
+    val idsfile = layout.protifyGenRes / "values" / "ids.xml"
     idsfile.getParentFile.mkdirs()
     if (rtxt.isFile) {
       FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.lastModified) { in =>
@@ -691,5 +794,18 @@ object Keys {
     def protify = layout.intermediates / "protify"
     def protifyDex = protify / "dex"
     def protifyDexAgent = protify / "agent"
+    def protifyDexJar = protify / "protify-dex.jar"
+    def protifyDexHash = protify / "protify-dex-hash.txt"
+    def protifyInstalledHash(dev: IDevice) = {
+      val path = protify / "installed" / dev.safeSerial
+      path.getParentFile.mkdirs()
+      path
+    }
+    def protifyGenRes = protify / "res"
+    def protifyAppInfoDescriptor = protify / "protify_application_info.txt"
+    def protifyDescriptorJar = protify / "protify-descriptor.jar"
+  }
+  implicit class SafeIDevice (val device: IDevice) extends AnyVal {
+    def safeSerial = URLEncoder.encode(device.getSerialNumber, "utf-8")
   }
 }

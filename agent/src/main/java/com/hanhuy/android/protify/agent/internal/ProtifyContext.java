@@ -5,6 +5,7 @@ import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
+import android.os.Build;
 import android.util.Log;
 import android.view.ContextThemeWrapper;
 
@@ -161,8 +162,10 @@ public class ProtifyContext extends ContextWrapper {
 
     private static void updateResources(Resources r) {
         updatedResources = r;
-        Activity top = LifecycleListener.getInstance().getTopActivity();
-        if (top != null) top.recreate();
+        if (Build.VERSION.SDK_INT >= 11) {
+            Activity top = LifecycleListener.getInstance().getTopActivity();
+            if (top != null) top.recreate();
+        }
     }
 
     private static Resources updatedResources;

@@ -5,6 +5,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.os.Build;
 import android.util.Log;
+import dalvik.system.DexFile;
 
 import java.io.File;
 import java.io.IOException;
@@ -13,16 +14,16 @@ import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
+import java.util.zip.ZipFile;
 
 /**
  * @author pfnguyen
  */
 public class DexLoader {
-    private final static String TAG = "ProtifyDexLoader";
+    final static String TAG = "ProtifyDexLoader";
     private static final int MIN_SDK_VERSION = 4;
-    private static final String PROTIFY_DEX_FILE_NAME = "protify.dex";
     private static final String PROTIFY_DEX_FOLDER_NAME = "protify-dexes";
-    private static final String CODE_CACHE_NAME = "protify_code_cache";
+    private static final String CODE_CACHE_NAME = "protify-code-cache";
     private static final String CODE_CACHE_PROTIFY_FOLDER_NAME = PROTIFY_DEX_FOLDER_NAME;
 
     public static void install(Context context) {
@@ -65,20 +66,21 @@ public class DexLoader {
                 return;
             }
 
-            File dexFile = getDexFile(context);
             File dexDir = getDexDir(context, applicationInfo);
+            File extractDir = getDexExtractionDir(context);
+            List<File> dexes = DexExtractor.load(context, applicationInfo, extractDir);
             // nothing to install if not present
-            if (dexFile.isFile() && dexFile.length() > 0)
-                installSecondaryDexes(loader, dexDir, Collections.singletonList(dexFile));
+            if (!dexes.isEmpty())
+                installSecondaryDexes(loader, dexDir, dexes);
 
         } catch (Exception e) {
             Log.e(TAG, "Protify  classloader installation failure", e);
-            throw new RuntimeException("Protify classloader installation failed (" + e.getMessage() + ").");
+            throw new RuntimeException("Protify classloader installation failed (" + e.getMessage() + ").", e);
         }
         Log.i(TAG, "install done");
     }
 
-    public static File getDexFile(Context context)
+    public static File getDexExtractionDir(Context context)
             throws IOException, PackageManager.NameNotFoundException {
         ApplicationInfo applicationInfo = getApplicationInfo(context);
         File cache = new File(applicationInfo.dataDir, PROTIFY_DEX_FOLDER_NAME);
@@ -92,7 +94,7 @@ public class DexLoader {
             cache = new File(context.getFilesDir(), PROTIFY_DEX_FOLDER_NAME);
             mkdirChecked(cache);
         }
-        return new File(cache, PROTIFY_DEX_FILE_NAME);
+        return cache;
     }
 
     // slightly modified from MultiDex.java, prepend instead of append
@@ -186,7 +188,11 @@ public class DexLoader {
                 V19.install(loader, files, dexDir);
             } else if (Build.VERSION.SDK_INT >= 14) {
                 V14.install(loader, files, dexDir);
-            }
+            }/* else {
+                V4.install(loader, files);
+            }*/
+            // V4 is the reason why DexExtractor must extract into ZIP, consider
+            // making the extraction go into ZIPs
         }
     }
 
@@ -344,6 +350,47 @@ public class DexLoader {
                     findMethod(dexPathList, "makeDexElements", ArrayList.class, File.class);
 
             return (Object[]) makeDexElements.invoke(dexPathList, files, optimizedDirectory);
+        }
+    }
+
+    /**
+     * Installer for platform versions 4 to 13.
+     */
+    private static final class V4 {
+        private static void install(ClassLoader loader, List<File> additionalClassPathEntries)
+                throws IllegalArgumentException, IllegalAccessException,
+                NoSuchFieldException, IOException {
+            /* The patched class loader is expected to be a descendant of
+             * dalvik.system.DexClassLoader. We modify its
+             * fields mPaths, mFiles, mZips and mDexs to append additional DEX
+             * file entries.
+             */
+            int extraSize = additionalClassPathEntries.size();
+
+            Field pathField = findField(loader, "path");
+
+            StringBuilder path = new StringBuilder((String) pathField.get(loader));
+            String[] extraPaths = new String[extraSize];
+            File[] extraFiles = new File[extraSize];
+            ZipFile[] extraZips = new ZipFile[extraSize];
+            DexFile[] extraDexs = new DexFile[extraSize];
+            for (ListIterator<File> iterator = additionalClassPathEntries.listIterator();
+                 iterator.hasNext();) {
+                File additionalEntry = iterator.next();
+                String entryPath = additionalEntry.getAbsolutePath();
+                path.append(':').append(entryPath);
+                int index = iterator.previousIndex();
+                extraPaths[index] = entryPath;
+                extraFiles[index] = additionalEntry;
+                extraZips[index] = new ZipFile(additionalEntry);
+                extraDexs[index] = DexFile.loadDex(entryPath, entryPath + ".dex", 0);
+            }
+
+            pathField.set(loader, path.toString());
+            expandFieldArray(loader, "mPaths", extraPaths);
+            expandFieldArray(loader, "mFiles", extraFiles);
+            expandFieldArray(loader, "mZips", extraZips);
+            expandFieldArray(loader, "mDexs", extraDexs);
         }
     }
 }

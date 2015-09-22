@@ -1,16 +1,19 @@
 package com.hanhuy.android.protify.agent.internal;
 
+import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.Application;
 import android.content.Context;
 import android.os.Bundle;
 import android.util.Log;
 
+import java.io.File;
 import java.lang.ref.WeakReference;
 
 /**
  * @author pfnguyen
  */
+@TargetApi(14)
 public class LifecycleListener implements Application.ActivityLifecycleCallbacks {
     private final static String TAG = "LifecycleListener";
     private LifecycleListener() { }
@@ -47,21 +50,4 @@ public class LifecycleListener implements Application.ActivityLifecycleCallbacks
         return top.get();
     }
 
-    public Thread.UncaughtExceptionHandler createExceptionHandler(
-            final Context ctx,
-            final Thread.UncaughtExceptionHandler defaultHandler) {
-        return new Thread.UncaughtExceptionHandler() {
-            @Override
-            public void uncaughtException(Thread thread, Throwable throwable) {
-                Log.v(TAG, "Caught a fatal error, clearing protify files");
-                try {
-                    ProtifyContext.getResourcesFile(ctx).delete();
-                    DexLoader.getDexFile(ctx).delete();
-                } catch (Throwable t) {
-                    // noop
-                }
-                defaultHandler.uncaughtException(thread, throwable);
-            }
-        };
-    }
 }

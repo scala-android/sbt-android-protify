@@ -3,10 +3,8 @@ package com.hanhuy.android.protify.agent;
 import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
-import com.hanhuy.android.protify.agent.internal.DexLoader;
-import com.hanhuy.android.protify.agent.internal.LifecycleListener;
-import com.hanhuy.android.protify.agent.internal.ProtifyContext;
-import com.hanhuy.android.protify.agent.internal.ProtifyLayoutInflater;
+import android.os.Build;
+import com.hanhuy.android.protify.agent.internal.*;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -53,10 +51,12 @@ public class ProtifyApplication extends Application {
         }
 
         Thread.setDefaultUncaughtExceptionHandler(
-                LifecycleListener.getInstance().createExceptionHandler(
+                ExceptionHandler.createExceptionHandler(
                         realApplication,
                         Thread.getDefaultUncaughtExceptionHandler()));
-        realApplication.registerActivityLifecycleCallbacks(LifecycleListener.getInstance());
+        if (Build.VERSION.SDK_INT >= 14)
+            realApplication.registerActivityLifecycleCallbacks(
+                    LifecycleListener.getInstance());
         ProtifyLayoutInflater.install(realApplication);
         ProtifyContext.loadResources(realApplication);
     }

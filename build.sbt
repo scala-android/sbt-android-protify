@@ -37,7 +37,7 @@ val plugin = project.in(file("sbt-plugin")).settings(
 ).settings(
   name := "android-protify",
   organization := "com.hanhuy.sbt",
-  scalacOptions ++= Seq("-deprecation","-Xlint","-feature"),
+  scalacOptions ++= Seq("-deprecation","-Xlint","-feature", "-unchecked"),
   sbtPlugin := true,
   repository in bintray := "sbt-plugins",
   publishMavenStyle := false,

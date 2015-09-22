@@ -1,10 +1,8 @@
 package com.hanhuy.android.protify.agent;
 
 import android.app.Application;
-import com.hanhuy.android.protify.agent.internal.DexLoader;
-import com.hanhuy.android.protify.agent.internal.LifecycleListener;
-import com.hanhuy.android.protify.agent.internal.ProtifyContext;
-import com.hanhuy.android.protify.agent.internal.ProtifyLayoutInflater;
+import android.os.Build;
+import com.hanhuy.android.protify.agent.internal.*;
 
 /**
  * @author pfnguyen
@@ -28,9 +26,10 @@ public class Protify {
         if (installed) return;
         installed = true;
         Thread.setDefaultUncaughtExceptionHandler(
-                LifecycleListener.getInstance().createExceptionHandler(app,
+                ExceptionHandler.createExceptionHandler(app,
                         Thread.getDefaultUncaughtExceptionHandler()));
-        app.registerActivityLifecycleCallbacks(LifecycleListener.getInstance());
+        if (Build.VERSION.SDK_INT >= 14)
+            app.registerActivityLifecycleCallbacks(LifecycleListener.getInstance());
         ProtifyLayoutInflater.install(app);
         ProtifyContext.loadResources(app);
         DexLoader.install(app);
