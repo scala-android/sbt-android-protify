@@ -12,6 +12,7 @@ import java.lang.reflect.Method;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
+import java.util.zip.ZipOutputStream;
 
 /**
  * @author pfnguyen
@@ -20,11 +21,9 @@ public class DexExtractor {
     private static final String TAG = DexLoader.TAG;
 
     private static final String PROTIFY_DEX_PREFIX = "protify-dex/";
-    private static final String DEX_PREFIX = "classes";
     private static final String DEX_SUFFIX = ".dex";
 
-    private static final String EXTRACTED_NAME_EXT = ".classes";
-    private static final String EXTRACTED_SUFFIX = ".zip";
+    static final String ZIP_SUFFIX = ".zip";
     private static final int MAX_EXTRACT_ATTEMPTS = 3;
 
     private static final String PREFS_FILE = "protify.version";
@@ -77,7 +76,8 @@ public class DexExtractor {
         File[] files = dexDir.listFiles(new FilenameFilter() {
             @Override
             public boolean accept(File file, String s) {
-                return s.endsWith(DEX_SUFFIX);
+                return Build.VERSION.SDK_INT >= 14 ?
+                        s.endsWith(DEX_SUFFIX) : s.endsWith(ZIP_SUFFIX);
             }
         });
         Arrays.sort(files, new Comparator<File>() {
@@ -134,10 +134,14 @@ public class DexExtractor {
             for (Enumeration<? extends ZipEntry> e = apk.entries(); e.hasMoreElements();) {
                 ZipEntry entry = e.nextElement();
                 String name = entry.getName();
-                if (name.startsWith(PROTIFY_DEX_PREFIX)) {
+                if (name.startsWith(PROTIFY_DEX_PREFIX) && name.endsWith(DEX_SUFFIX)) {
                     String fname = name.substring(name.lastIndexOf("/") + 1);
-                    File extractedFile = new File(dexDir, fname);
-                    extract(apk, entry, extractedFile, "protify-extraction");
+                    File extractedFile = new File(dexDir,
+                            Build.VERSION.SDK_INT < 14 ? fname + ZIP_SUFFIX : fname);
+                    if (Build.VERSION.SDK_INT < 14) {
+                        extractV4(apk, entry, extractedFile, "protify-extraction");
+                    } else
+                        extractV14(apk, entry, extractedFile, "protify-extraction");
                     files.add(extractedFile);
                 }
             }
@@ -189,7 +193,7 @@ public class DexExtractor {
         }
     }
 
-    private static void extract(ZipFile apk, ZipEntry dexFile, File extractTo,
+    private static void extractV14(ZipFile apk, ZipEntry dexFile, File extractTo,
                                 String extractedFilePrefix) throws IOException {
 
         InputStream in = apk.getInputStream(dexFile);
@@ -221,10 +225,47 @@ public class DexExtractor {
             throw new IOException("Failed to extract to: " + extractTo);
         }
     }
+    private static void extractV4(ZipFile apk, ZipEntry dexFile, File extractTo,
+                                String extractedFilePrefix) throws IOException, FileNotFoundException {
 
-    /**
-     * Closes the given {@code Closeable}. Suppresses any IO exceptions.
-     */
+        InputStream in = apk.getInputStream(dexFile);
+        ZipOutputStream out = null;
+        File tmp = File.createTempFile(extractedFilePrefix, ZIP_SUFFIX,
+                extractTo.getParentFile());
+        Log.i(TAG, "Extracting " + tmp.getPath());
+        try {
+            out = new ZipOutputStream(new BufferedOutputStream(new FileOutputStream(tmp)));
+            try {
+                ZipEntry classesDex = new ZipEntry("classes.dex");
+                // keep zip entry time since it is the criteria used by Dalvik
+                classesDex.setTime(dexFile.getTime());
+                out.putNextEntry(classesDex);
+
+                byte[] buffer = new byte[BUFFER_SIZE];
+                int length = in.read(buffer);
+                while (length != -1) {
+                    out.write(buffer, 0, length);
+                    length = in.read(buffer);
+                }
+                out.closeEntry();
+            } finally {
+                out.close();
+            }
+            Log.i(TAG, "Renaming to " + extractTo.getPath());
+            if (!tmp.renameTo(extractTo)) {
+                throw new IOException("Failed to rename \"" + tmp.getAbsolutePath() +
+                        "\" to \"" + extractTo.getAbsolutePath() + "\"");
+            }
+        } finally {
+            closeQuietly(in);
+            tmp.delete(); // return status ignored
+        }
+    }
+
+
+        /**
+         * Closes the given {@code Closeable}. Suppresses any IO exceptions.
+         */
     private static void closeQuietly(Closeable closeable) {
         try {
             closeable.close();

@@ -390,6 +390,7 @@ object Keys {
           "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
           "--ei" :: EXTRA_THEME     :: themeid                          ::
           "--ei" :: EXTRA_LAYOUT    :: resid                            ::
+          "-n"   ::
           "com.hanhuy.android.protify/.LayoutReceiver"                  ::
           Nil
 
@@ -437,28 +438,25 @@ object Keys {
         t.delete()
         (p, s"/sdcard/protify/$pkg/${t.getName}")
       }
-      val f = createTempFile("resources", ".ap_")
-      f.delete()
+      val restmp = createTempFile("resources", ".ap_")
+      restmp.delete()
+      val dexinfo = createTempFile("dex-info", ".txt")
+      dexinfo.deleteOnExit()
       val cmdS =
         "am"   :: "broadcast"     ::
         "-a"   :: intent          ::
-        "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/$pkg/${f.getName}"    ::
+        "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/$pkg/${restmp.getName}"  ::
+        "-e"   :: EXTRA_DEX_INFO  :: s"/sdcard/protify/$pkg/${dexinfo.getName}" ::
+        "-n"   ::
+        s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"       ::
         Nil
 
-      val targetS =
-        s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"    ::
-        Nil
 
-      val dexS =
-        "--esa" :: EXTRA_DEX       :: dexlist.map(_._2).mkString(",")         ::
-        "--esa" :: EXTRA_DEX_NAMES :: dexlist.map(_._1.getName).mkString(",") ::
-        Nil
+      IO.write(dexinfo, dexlist.map(d => d._2 + ":" + d._1.getName).mkString("\n"))
 
-      val actualS = cmdS ++ (if (topush.nonEmpty) dexS else Nil) ++ targetS
+      log.debug("Executing: " + cmdS.mkString(" "))
 
-      log.debug("Executing: " + actualS.mkString(" "))
-
-      dev.executeShellCommand(s"rm -rf /sdcard/protify/$pkg/*", new android.Commands.ShellResult)
+      dev.executeShellCommand(s"rm -r /sdcard/protify/$pkg/*", new android.Commands.ShellResult)
       var pushres = false
       var pushdex = false
       FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
@@ -470,14 +468,16 @@ object Keys {
       if (pushres || pushdex) {
         android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
           if (pushres)
-            dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/$pkg/${f.getName}")
+            dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/$pkg/${restmp.getName}")
           if (pushdex) {
+            dev.pushFile(dexinfo.getAbsolutePath, s"/sdcard/protify/$pkg/${dexinfo.getName}")
+            dexinfo.delete()
             dexlist.foreach { case (d, p) =>
               dev.pushFile(d.getAbsolutePath, p)
             }
           }
         }
-        dev.executeShellCommand(actualS.mkString(" "), new android.Commands.ShellResult)
+        dev.executeShellCommand(cmdS.mkString(" "), new android.Commands.ShellResult)
       }
       // TODO remove old entries
       IO.writeLines(layout.protifyInstalledHash(dev),
@@ -591,6 +591,7 @@ object Keys {
       val cmdS =
         "am"   :: "broadcast"     ::
         "-a"   :: CLEAN_INTENT    ::
+        "-n"   ::
         s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver" ::
         Nil
 

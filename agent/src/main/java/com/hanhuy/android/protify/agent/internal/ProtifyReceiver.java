@@ -12,11 +12,11 @@ import android.os.Process;
 import android.util.Log;
 import com.hanhuy.android.protify.Intents;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.FileOutputStream;
+import java.io.*;
 import java.nio.channels.FileChannel;
 import java.util.List;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipOutputStream;
 
 /**
  * @author pfnguyen
@@ -27,12 +27,13 @@ public class ProtifyReceiver extends BroadcastReceiver {
     public void onReceive(Context context, Intent intent) {
         final String action = intent == null ? null : intent.getAction();
         Log.v(TAG, "Received action: " + action);
-        Activity top = Build.VERSION.SDK_INT < 14 ? null : LifecycleListener.getInstance().getTopActivity();
+        boolean ltV14 = Build.VERSION.SDK_INT < 14;
+        Activity top = ltV14 ? null : LifecycleListener.getInstance().getTopActivity();
         if (Intents.PROTIFY_INTENT.equals(action)) {
             InstallState result = install(intent.getExtras(), context);
-            if (result.dex) {
+            if (result.dex || (result.resources && ltV14)) {
                 Log.v(TAG, "Updated dex, restarting process");
-                if (top != null) {
+                if (top != null || ltV14) {
                     Intent reset = new Intent(context, ProtifyActivity.class);
                     reset.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
                     context.startActivity(reset);
@@ -95,25 +96,57 @@ public class ProtifyReceiver extends BroadcastReceiver {
     private InstallState install(Bundle extras, Context context) {
         if (extras != null) {
             String resources = extras.getString(Intents.EXTRA_RESOURCES);
-            String[] dex = extras.getStringArray(Intents.EXTRA_DEX);
-            String[] dexNames = extras.getStringArray(Intents.EXTRA_DEX_NAMES);
-            boolean hasDex = dex != null && dexNames != null &&
-                    dex.length == dexNames.length && dex.length > 0;
+            String dexInfo = extras.getString(Intents.EXTRA_DEX_INFO);
+            File dexInfoFile = dexInfo == null ? null : new File(dexInfo);
+            boolean hasDex = dexInfoFile != null && dexInfoFile.isFile() && dexInfoFile.length() > 0;
             boolean hasRes = ProtifyContext.updateResources(context, resources, false);
             if (hasDex) {
                 try {
-                    // TODO implement copy into a final ZIP file for v4-13 support
-                    for (int i = 0; i < dex.length; i++) {
-                        Log.v(TAG, "Loading DEX from " + dex[i] + " to " + dexNames[i]);
-                        File dexfile = new File(dex[i]);
-                        FileChannel ch = new FileInputStream(dexfile).getChannel();
-                        File dexDir = DexLoader.getDexExtractionDir(context);
-                        File dest = new File(dexDir, dexNames[i]);
-                        FileChannel ch2 = new FileOutputStream(dest, false).getChannel();
-                        ch.transferTo(0, dexfile.length(), ch2);
-                        ch.close();
-                        ch2.close();
+                    StringWriter sw = new StringWriter();
+                    BufferedReader r = new BufferedReader(
+                            new InputStreamReader(new FileInputStream(dexInfoFile), "utf-8"));
+                    String line;
+                    while ((line = r.readLine()) != null) {
+                        sw.write(line + "\n");
                     }
+                    String[] lines = sw.toString().split("\n");
+                    for (String l : lines) {
+                        String[] ls = l.split(":");
+                        String dex = ls[0];
+                        String dexName = ls[1];
+                        Log.v(TAG, "Loading DEX from " + dex + " to " + dexName);
+                        File dexDir = DexLoader.getDexExtractionDir(context);
+                        if (Build.VERSION.SDK_INT >= 14) {
+                            File dexfile = new File(dex);
+                            FileChannel ch = new FileInputStream(dexfile).getChannel();
+                            File dest = new File(dexDir, dexName);
+                            FileChannel ch2 = new FileOutputStream(dest, false).getChannel();
+                            ch.transferTo(0, dexfile.length(), ch2);
+                            ch.close();
+                            ch2.close();
+                        } else {
+                            File dexfile = new File(dex);
+                            File dest = new File(dexDir, dexName + DexExtractor.ZIP_SUFFIX);
+                            ZipOutputStream zout = new ZipOutputStream(
+                                    new BufferedOutputStream(new FileOutputStream(dest)));
+                            FileInputStream fin = new FileInputStream(dexfile);
+                            try {
+                                ZipEntry classesDex = new ZipEntry("classes.dex");
+                                classesDex.setTime(dexfile.lastModified());
+                                zout.putNextEntry(classesDex);
+                                byte[] buffer = new byte[0x4000];
+                                int read;
+                                while ((read = fin.read(buffer)) != -1) {
+                                    zout.write(buffer, 0, read);
+                                }
+                                zout.closeEntry();
+                            } finally {
+                                fin.close();
+                                zout.close();
+                            }
+                        }
+                    }
+                    r.close();
                 } catch (Exception e) {
                     throw new RuntimeException("Cannot copy DEX: " + e.getMessage(), e);
                 }

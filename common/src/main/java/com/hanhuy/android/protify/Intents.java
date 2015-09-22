@@ -15,4 +15,5 @@ public interface Intents {
     public final static String EXTRA_RTXT = "com.hanhuy.android.protify.extra.RTXT";
     public final static String EXTRA_RTXT_HASH = "com.hanhuy.android.protify.extra.RTXT_HASH";
     public final static String EXTRA_APPCOMPAT = "com.hanhuy.android.protify.extra.APPCOMPAT";
+    public final static String EXTRA_DEX_INFO = "com.hanhuy.android.protify.extra.DEX_INFO";
 }

@@ -44,17 +44,22 @@ public class ProtifyContext extends ContextWrapper {
     private final static Field APPCOMPAT_CONTEXT_THEME_WRAPPER_MTHEME;
 
     static {
+        Field mBase = null;
+        Field mResources = null;
+        Field mTheme = null;
         try {
-            CONTEXT_WRAPPER_MBASE = ContextWrapper.class.getDeclaredField("mBase");
-            CONTEXT_WRAPPER_MBASE.setAccessible(true);
-            CONTEXT_THEME_WRAPPER_MRESOURCES = ContextThemeWrapper.class.getDeclaredField("mResources");
-            CONTEXT_THEME_WRAPPER_MRESOURCES.setAccessible(true);
-            CONTEXT_THEME_WRAPPER_MTHEME = ContextThemeWrapper.class.getDeclaredField("mTheme");
-            CONTEXT_THEME_WRAPPER_MTHEME.setAccessible(true);
+            mBase = ContextWrapper.class.getDeclaredField("mBase");
+            mBase.setAccessible(true);
+            mResources = ContextThemeWrapper.class.getDeclaredField("mResources");
+            mResources.setAccessible(true);
+            mTheme = ContextThemeWrapper.class.getDeclaredField("mTheme");
+            mTheme.setAccessible(true);
         } catch (Exception e) {
-            throw new IllegalStateException(
-                    "Unable to access required fields: " + e.getMessage(), e);
+            android.util.Log.v("ProtifyContext", "Context fields not available: " + e.getMessage(), e);
         }
+        CONTEXT_WRAPPER_MBASE = mBase;
+        CONTEXT_THEME_WRAPPER_MRESOURCES = mResources;
+        CONTEXT_THEME_WRAPPER_MTHEME = mTheme;
 
         Class<?> appcompatContextThemeWrapper = null;
         Field appcompatContextThemeWrapperMTheme = null;

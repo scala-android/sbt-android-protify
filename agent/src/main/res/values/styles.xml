@@ -1,6 +1,8 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="InternalProtifyDialogTheme" parent="android:Theme.Dialog"/>
+    <style name="InternalProtifyDialogTheme" parent="android:Theme.Dialog">
+        <item name="android:windowNoTitle">true</item>
+    </style>
     <string name="protify_placeholder_required">
         AAPT BUG WORKAROUND (will not generate R.java without a non-style resource)
     </string>

@@ -188,11 +188,9 @@ public class DexLoader {
                 V19.install(loader, files, dexDir);
             } else if (Build.VERSION.SDK_INT >= 14) {
                 V14.install(loader, files, dexDir);
-            }/* else {
+            } else {
                 V4.install(loader, files);
-            }*/
-            // V4 is the reason why DexExtractor must extract into ZIP, consider
-            // making the extraction go into ZIPs
+            }
         }
     }
 

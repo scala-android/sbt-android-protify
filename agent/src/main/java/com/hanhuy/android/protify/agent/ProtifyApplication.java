@@ -3,10 +3,14 @@ package com.hanhuy.android.protify.agent;
 import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.res.AssetManager;
+import android.content.res.Resources;
 import android.os.Build;
+import android.util.Log;
 import com.hanhuy.android.protify.agent.internal.*;
 
 import java.io.ByteArrayOutputStream;
+import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.ref.WeakReference;
@@ -19,17 +23,19 @@ import java.util.Map;
 
 /**
  * some of this is straight up ripped off from bazelbuild's StubApplication
+ * https://github.com/bazelbuild/bazel/blob/3eb0687fde3745cf52bbbb513f7769ecb9d004e4/src/tools/android/java/com/google/devtools/build/android/incrementaldeployment/StubApplication.java
  * @author pfnguyen
  */
 @SuppressWarnings("unused")
 public class ProtifyApplication extends Application {
+    private final static String TAG = "ProtifyApplication";
     private final String realApplicationClass;
     private Application realApplication;
 
     public ProtifyApplication() {
         String[] applicationInfo = getResourceAsString("protify_application_info.txt").split("\n");
         realApplicationClass = applicationInfo[0].trim();
-        android.util.Log.d("ProtifyApplication", "Real application class: [" + realApplicationClass + "]");
+        Log.d(TAG, "Real application class: [" + realApplicationClass + "]");
         Protify.installed = true;
     }
 
@@ -54,16 +60,18 @@ public class ProtifyApplication extends Application {
 //                ExceptionHandler.createExceptionHandler(
 //                        realApplication,
 //                        Thread.getDefaultUncaughtExceptionHandler()));
-        if (Build.VERSION.SDK_INT >= 14)
+        if (Build.VERSION.SDK_INT >= 14) {
             realApplication.registerActivityLifecycleCallbacks(
                     LifecycleListener.getInstance());
-        ProtifyLayoutInflater.install(realApplication);
-        ProtifyContext.loadResources(realApplication);
+            ProtifyLayoutInflater.install(realApplication);
+            ProtifyContext.loadResources(realApplication);
+        }
     }
 
     @Override
     public void onCreate() {
         installRealApplication();
+        installExternalResources(this);
         super.onCreate();
         realApplication.onCreate();
     }
@@ -166,6 +174,17 @@ public class ProtifyApplication extends Application {
         }
     }
 
+    private static void installExternalResources(Context context) {
+        File f = ProtifyContext.getResourcesFile(context);
+        if (f.isFile() && f.length() > 0) {
+            Log.v(TAG, "Installing external resource file: " + f);
+            if (Build.VERSION.SDK_INT >= 18)
+                V19Resources.install(f.getAbsolutePath());
+            else
+                V4Resources.install(f.getAbsolutePath());
+        }
+    }
+
     private String getResourceAsString(String resource) {
         InputStream resourceStream = null;
         // try-with-resources would be much nicer, but that requires SDK level 19, and we want this code
@@ -205,4 +224,95 @@ public class ProtifyApplication extends Application {
         }
     }
 
+    static class V19Resources {
+        static void install(String externalResourceFile) {
+            try {
+                // Create a new AssetManager instance and point it to the resources installed under
+                // /sdcard
+                AssetManager newAssetManager = AssetManager.class.getConstructor().newInstance();
+                Method mAddAssetPath = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
+                mAddAssetPath.setAccessible(true);
+                if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile)) == 0) {
+                    throw new IllegalStateException("Could not create new AssetManager");
+                }
+
+                // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm
+                // in L, so we do it unconditionally.
+                Method mEnsureStringBlocks = AssetManager.class.getDeclaredMethod("ensureStringBlocks");
+                mEnsureStringBlocks.setAccessible(true);
+                mEnsureStringBlocks.invoke(newAssetManager);
+
+                // Find the singleton instance of ResourcesManager
+                Class<?> clazz = Class.forName("android.app.ResourcesManager");
+                Method mGetInstance = clazz.getDeclaredMethod("getInstance");
+                mGetInstance.setAccessible(true);
+                Object resourcesManager = mGetInstance.invoke(null);
+
+                Field mAssets = Resources.class.getDeclaredField("mAssets");
+                mAssets.setAccessible(true);
+
+                // Iterate over all known Resources objects
+                Field fMActiveResources = clazz.getDeclaredField("mActiveResources");
+                fMActiveResources.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Map<?, WeakReference<Resources>> arrayMap =
+                        (Map<?, WeakReference<Resources>>) fMActiveResources.get(resourcesManager);
+                for (WeakReference<Resources> wr : arrayMap.values()) {
+                    Resources resources = wr.get();
+                    // Set the AssetManager of the Resources instance to our brand new one
+                    mAssets.set(resources, newAssetManager);
+                    resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
+                }
+            } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
+                    ClassNotFoundException | InvocationTargetException | InstantiationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+    static class V4Resources {
+        static void install(String externalResourceFile) {
+            try {
+                // Create a new AssetManager instance and point it to the resources installed under
+                // /sdcard
+                AssetManager newAssetManager = AssetManager.class.getConstructor().newInstance();
+                Method mAddAssetPath = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
+                mAddAssetPath.setAccessible(true);
+                if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile)) == 0) {
+                    throw new IllegalStateException("Could not create new AssetManager");
+                }
+
+                // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm
+                // in L, so we do it unconditionally.
+                Method mEnsureStringBlocks = AssetManager.class.getDeclaredMethod("ensureStringBlocks");
+                mEnsureStringBlocks.setAccessible(true);
+                mEnsureStringBlocks.invoke(newAssetManager);
+
+                // Find the singleton instance of ResourcesManager
+                Class<?> clazz = Class.forName("android.app.ActivityThread");
+                Method mGetInstance = clazz.getDeclaredMethod("currentActivityThread");
+                mGetInstance.setAccessible(true);
+                Object resourcesManager = mGetInstance.invoke(null);
+
+                Field mAssets = Resources.class.getDeclaredField("mAssets");
+                mAssets.setAccessible(true);
+
+                // Iterate over all known Resources objects
+                Field fMActiveResources = clazz.getDeclaredField("mActiveResources");
+                fMActiveResources.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Map<?, WeakReference<Resources>> arrayMap =
+                        (Map<?, WeakReference<Resources>>) fMActiveResources.get(resourcesManager);
+                for (WeakReference<Resources> wr : arrayMap.values()) {
+                    Resources resources = wr.get();
+                    // Set the AssetManager of the Resources instance to our brand new one
+                    mAssets.set(resources, newAssetManager);
+                    resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
+                }
+            } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
+                    ClassNotFoundException | InvocationTargetException | InstantiationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+
+    }
 }

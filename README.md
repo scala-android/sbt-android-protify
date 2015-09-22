@@ -10,7 +10,7 @@
 * Kotlin
 * appcompat-v7, design and support-v4 libraries
 * Most existing android projects
-* Android devices v14+ for live-coding
+* Android devices v4+
 * Dex sharding for near-instant deployment
 
 ## Demos:
@@ -48,7 +48,6 @@ LIMITATIONS:
   * Deleting a resource will require running `protify:clean` or else the build
     will break
   * Singleton state will not be restored upon deploying new dex code.
-  * Multidex is not supported
 
 ### Android Studio / Gradle integration
 
