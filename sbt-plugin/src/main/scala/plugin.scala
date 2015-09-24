@@ -98,7 +98,6 @@ object Keys {
         sourcesFor(layout)
       },
     proguardOptions      := (proguardOptions in Android).value,
-    proguardOptions      += "-keep public class * extends com.hanhuy.android.protify.ActivityProxy { *; }",
     proguardAggregate   <<= proguardAggregateTaskDef,
     proguardInputs      <<= proguardInputsTaskDef,
     proguardInputs      <<= proguardInputs dependsOn (packageT in Compile),
