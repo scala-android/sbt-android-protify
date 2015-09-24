@@ -70,8 +70,10 @@ public class DexLoader {
             File extractDir = getDexExtractionDir(context);
             List<File> dexes = DexExtractor.load(context, applicationInfo, extractDir);
             // nothing to install if not present
-            if (!dexes.isEmpty())
+            if (!dexes.isEmpty()) {
+                Log.v(TAG, "Loading secondary dexes: " + dexes);
                 installSecondaryDexes(loader, dexDir, dexes);
+            }
 
         } catch (Exception e) {
             Log.e(TAG, "Protify  classloader installation failure", e);
