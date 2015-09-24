@@ -65,7 +65,9 @@ object Keys {
   ) ++ inConfig(Protify)(List(
     clean <<= protifyCleanTaskDef,
     install <<= protifyInstallTaskDef,
-    run <<= protifyRunTaskDef,
+    // TODO update to use android.Keys.debug once 1.5.1 is available
+    InputKey[Unit]("debug") <<= protifyRunTaskDef(true),
+    run <<= protifyRunTaskDef(false),
     protifyDexAgent <<= protifyDexAgentTaskDef,
     protifyDexJar <<= protifyDexJarTaskDef,
     protifyPublicResources <<= protifyPublicResourcesTaskDef,
@@ -537,7 +539,7 @@ object Keys {
     else
       Commands.targetDevice(sdk, st.log) foreach execute
   }
-  val protifyRunTaskDef: Def.Initialize[InputTask[Unit]] = Def.inputTask {
+  def protifyRunTaskDef(debug: Boolean): Def.Initialize[InputTask[Unit]] = Def.inputTask {
     val k = (sdkPath in Android).value
     val l = (projectLayout in Android).value
     val p = (applicationId in Android).value
@@ -568,8 +570,8 @@ object Keys {
     }) match {
       case Some(intent) =>
         val receiver = new Commands.ShellLogging(l => s.log.info(l))
+        val command = "am start %s -n %s" format (if (debug) "-D" else "", intent)
         def execute(d: IDevice): Unit = {
-          val command = "am start -n %s" format intent
           s.log.info(s"Running on ${d.getProperty(IDevice.PROP_DEVICE_MODEL)} (${d.getSerialNumber})...")
           s.log.debug("Executing [%s]" format command)
           d.executeShellCommand(command, receiver)
