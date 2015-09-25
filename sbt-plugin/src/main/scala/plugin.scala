@@ -262,7 +262,7 @@ object Keys {
       }
       val root = XML.loadFile(processed)
       XML.save(processed.getAbsolutePath,
-        new RuleTransformer(ApplicationTransform).apply(root))
+        new RuleTransformer(ApplicationTransform).apply(root), "utf-8")
       processed
     },
     collectResources <<= collectResources dependsOn (protifyPublicResources in Protify),
