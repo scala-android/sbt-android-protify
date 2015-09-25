@@ -104,6 +104,7 @@ object Keys {
       val debug = apkbuildDebug.value()
       !debug && legacy
     },
+    dexShards := true,
     dexAggregate        := {
       val opts = dexAggregate.value
       val debug = apkbuildDebug.value()
