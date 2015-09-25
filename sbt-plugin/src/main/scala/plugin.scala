@@ -190,65 +190,68 @@ object Keys {
     },
     processManifest := {
       val processed = processManifest.value
-      val pkg = packageForR.value
-      val appInfoFile = appInfoDescriptor((resourceManaged in Protify).value)
-      import scala.xml._
-      import scala.xml.transform._
-      object ApplicationTransform extends RewriteRule {
-        import android.Tasks.ANDROID_NS
-        override def transform(n: Node): Seq[Node] = n match {
-          case Elem(prefix, "application", attribs, scope, children @ _*) =>
-            val androidPrefix = scope.getPrefix(ANDROID_NS)
-            val realApplication = attribs.get(ANDROID_NS, n, "name").fold(
-              "android.app.Application") { nm =>
-              val appName = nm.head.text
-              if (appName.startsWith("."))
-                pkg + appName
-              else if (appName.contains("."))
-                appName
-              else
-                pkg + "." + appName
-            }
-            IO.write(appInfoFile, realApplication)
-            val attrs = attribs.filterNot(_.prefixedKey == s"$androidPrefix:name")
-            val withNameAttr = new PrefixedAttribute(androidPrefix,
-              "name", "com.hanhuy.android.protify.agent.ProtifyApplication",
-              attrs.foldLeft(Null: MetaData)((a,b) => a.append(b)))
-            // ugh, need to create elements instead of xml literals because
-            // we want to allow non-'android' namespace prefixes
-            val activityName = new PrefixedAttribute(androidPrefix,
-              "name", "com.hanhuy.android.protify.agent.internal.ProtifyActivity", Null)
-            val activityExported = new PrefixedAttribute(androidPrefix,
-              "exported", "false", activityName)
-            val activityTheme = new PrefixedAttribute(androidPrefix,
-              "theme", "@style/InternalProtifyDialogTheme", activityExported)
-            val activityE = new Elem(null, "activity", activityTheme, TopScope,
-              minimizeEmpty = true)
+      if (apkbuildDebug.value()) {
+        val pkg = packageForR.value
+        val appInfoFile = appInfoDescriptor((resourceManaged in Protify).value)
+        import scala.xml._
+        import scala.xml.transform._
+        object ApplicationTransform extends RewriteRule {
 
-//            <activity android:name="com.hanhuy.android.protify.agent.internal.ProtifyActivity"
-//                      android:exported="false"
-//                      android:theme="@style/InternalProtifyDialogTheme"/>
+          import android.Tasks.ANDROID_NS
 
-            import com.hanhuy.android.protify.Intents
-            val actionName0 = new PrefixedAttribute(androidPrefix,
-              "name", Intents.PROTIFY_INTENT, Null)
-            val actionName1 = new PrefixedAttribute(androidPrefix,
-              "name", Intents.CLEAN_INTENT, Null)
-            val actionName2 = new PrefixedAttribute(androidPrefix,
-              "name", Intents.INSTALL_INTENT, Null)
-            val intentFilterAction0 = new Elem(null, "action", actionName0, TopScope, minimizeEmpty = true)
-            val intentFilterAction1 = new Elem(null, "action", actionName1, TopScope, minimizeEmpty = true)
-            val intentFilterAction2 = new Elem(null, "action", actionName2, TopScope, minimizeEmpty = true)
-            val intentFilter = new Elem(null, "intent-filter", Null, TopScope, minimizeEmpty = true,
-              intentFilterAction0, intentFilterAction1, intentFilterAction2)
-            val receiverName = new PrefixedAttribute(androidPrefix,
-              "name", "com.hanhuy.android.protify.agent.internal.ProtifyReceiver", Null)
-            val receiverPermission = new PrefixedAttribute(androidPrefix,
-              "permission", "android.permission.INSTALL_PACKAGES", receiverName)
-            val receiverExported = new PrefixedAttribute(androidPrefix,
-              "exported", "true", receiverPermission)
-            val receiverE = new Elem(null, "receiver", receiverExported, TopScope,
-              minimizeEmpty = true, intentFilter)
+          override def transform(n: Node): Seq[Node] = n match {
+            case Elem(prefix, "application", attribs, scope, children @ _*) =>
+              val androidPrefix = scope.getPrefix(ANDROID_NS)
+              val realApplication = attribs.get(ANDROID_NS, n, "name").fold(
+                "android.app.Application") { nm =>
+                val appName = nm.head.text
+                if (appName.startsWith("."))
+                  pkg + appName
+                else if (appName.contains("."))
+                  appName
+                else
+                  pkg + "." + appName
+              }
+              IO.write(appInfoFile, realApplication)
+              val attrs = attribs.filterNot(_.prefixedKey == s"$androidPrefix:name")
+              val withNameAttr = new PrefixedAttribute(androidPrefix,
+                "name", "com.hanhuy.android.protify.agent.ProtifyApplication",
+                attrs.foldLeft(Null: MetaData)((a,b) => a.append(b)))
+              // ugh, need to create elements instead of xml literals because
+              // we want to allow non-'android' namespace prefixes
+              val activityName = new PrefixedAttribute(androidPrefix,
+                "name", "com.hanhuy.android.protify.agent.internal.ProtifyActivity", Null)
+              val activityExported = new PrefixedAttribute(androidPrefix,
+                "exported", "false", activityName)
+              val activityTheme = new PrefixedAttribute(androidPrefix,
+                "theme", "@style/InternalProtifyDialogTheme", activityExported)
+              val activityE = new Elem(null, "activity", activityTheme, TopScope,
+                minimizeEmpty = true)
+
+//                <activity android:name="com.hanhuy.android.protify.agent.internal.ProtifyActivity"
+//                          android:exported="false"
+//                          android:theme="@style/InternalProtifyDialogTheme"/>
+
+              import com.hanhuy.android.protify.Intents
+              val actionName0 = new PrefixedAttribute(androidPrefix,
+                "name", Intents.PROTIFY_INTENT, Null)
+              val actionName1 = new PrefixedAttribute(androidPrefix,
+                "name", Intents.CLEAN_INTENT, Null)
+              val actionName2 = new PrefixedAttribute(androidPrefix,
+                "name", Intents.INSTALL_INTENT, Null)
+              val intentFilterAction0 = new Elem(null, "action", actionName0, TopScope, minimizeEmpty = true)
+              val intentFilterAction1 = new Elem(null, "action", actionName1, TopScope, minimizeEmpty = true)
+              val intentFilterAction2 = new Elem(null, "action", actionName2, TopScope, minimizeEmpty = true)
+              val intentFilter = new Elem(null, "intent-filter", Null, TopScope, minimizeEmpty = true,
+                intentFilterAction0, intentFilterAction1, intentFilterAction2)
+              val receiverName = new PrefixedAttribute(androidPrefix,
+                "name", "com.hanhuy.android.protify.agent.internal.ProtifyReceiver", Null)
+              val receiverPermission = new PrefixedAttribute(androidPrefix,
+                "permission", "android.permission.INSTALL_PACKAGES", receiverName)
+              val receiverExported = new PrefixedAttribute(androidPrefix,
+                "exported", "true", receiverPermission)
+              val receiverE = new Elem(null, "receiver", receiverExported, TopScope,
+                minimizeEmpty = true, intentFilter)
 //            <receiver android:name="com.hanhuy.android.protify.agent.internal.ProtifyReceiver"
 //                      android:permission="android.permission.INSTALL_PACKAGES"
 //                      android:exported="true">
@@ -256,13 +259,14 @@ object Keys {
 //                <action android:name="com.hanhuy.android.protify.action.PROTIFY"/>
 //              </intent-filter>
 //            </receiver>
-            Elem(prefix, "application", withNameAttr, scope, true, children :+ activityE :+ receiverE:_*)
-          case x => x
+              Elem(prefix, "application", withNameAttr, scope, true, children :+ activityE :+ receiverE:_*)
+            case x => x
+          }
         }
+        val root = XML.loadFile(processed)
+        XML.save(processed.getAbsolutePath,
+          new RuleTransformer(ApplicationTransform).apply(root), "utf-8")
       }
-      val root = XML.loadFile(processed)
-      XML.save(processed.getAbsolutePath,
-        new RuleTransformer(ApplicationTransform).apply(root), "utf-8")
       processed
     },
     collectResources <<= collectResources dependsOn (protifyPublicResources in Protify),
