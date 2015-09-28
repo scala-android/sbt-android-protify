@@ -30,7 +30,7 @@ Current version is 1.1.5
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
    * Alternatively, use `android-gradle-build` when working with an existing gradle project:
-     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "0.9.3")' > project/plugins.sbt`
+     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.0.0")' > project/plugins.sbt`
      * `echo 'object Build extends android.GradleBuild' > project/build.scala`
 4. Add the protify plugin:
    `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.5")' >> project/plugins.sbt`
@@ -45,8 +45,8 @@ Current version is 1.1.5
 9. Enjoy
 
 LIMITATIONS:
-  * Deleting a resource will require running `protify:clean` or else the build
-    will break
+  * Deleting a resource such that the R constant will be removed will require
+    running `protify:clean` or else the build will break
   * Singleton state will not be restored upon deploying new dex code.
     (or resources when on device api level <14)
 
