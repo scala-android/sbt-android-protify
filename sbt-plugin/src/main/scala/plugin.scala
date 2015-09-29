@@ -683,9 +683,14 @@ object Keys {
     val dx = ((dex in Android).value * "*.dex" get) map { f =>
       (f, s"protify-dex/${f.getName}")
     }
+    val enumRe = """classes(\d+).dex""".r
     val pd = (predex in Android).value.flatMap(_._2 * "*.dex" get) map { f =>
       val name = f.getParentFile.getName.dropRight(4) // ".jar"
-      (f, s"protify-dex/$name.dex")
+      val ext = f.getName match {
+        case enumRe(num) ⇒ s"_$num"
+        case _ ⇒ ""
+      }
+      (f, s"protify-dex/$name$ext.dex")
     }
 
     val prefixlen = "protify-dex/".length
