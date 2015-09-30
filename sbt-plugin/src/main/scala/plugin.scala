@@ -36,7 +36,7 @@ object Plugin extends AutoPlugin {
 
 
   override def projectSettings =
-    updateCheck in Keys.Protify := UpdateChecker(state.value.log) :: Nil
+    updateCheck in Keys.Protify := UpdateChecker(streams.value.log) :: Nil
 
   override def globalSettings = (onLoad := onLoad.value andThen { s =>
     Project.runTask(updateCheck in Keys.Protify, s).fold(s)(_._1)
