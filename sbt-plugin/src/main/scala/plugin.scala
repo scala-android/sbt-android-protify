@@ -4,7 +4,7 @@ import java.io.File
 import java.net.URLEncoder
 
 import android.Keys.Internal._
-import android.{BuildOutput, Aggregate, Dex, Proguard}
+import android.{BuildOutput, Aggregate, Dex}
 import com.android.ddmlib.IDevice
 import sbt.Def.Initialize
 import sbt._
@@ -33,6 +33,14 @@ object Plugin extends AutoPlugin {
   override def requires = android.AndroidPlugin
 
   val autoImport = Keys
+
+
+  override def projectSettings =
+    updateCheck in Keys.Protify := UpdateChecker(state.value.log) :: Nil
+
+  override def globalSettings = (onLoad := onLoad.value andThen { s =>
+    Project.runTask(updateCheck in Keys.Protify, s).fold(s)(_._1)
+  }) :: Nil
 }
 
 object Keys {
@@ -40,10 +48,10 @@ object Keys {
   type ResourceId = (String,Int)
   val protifyLayout = InputKey[Unit]("protify-layout", "prototype an android layout on device")
   val protify = TaskKey[Unit]("protify", "live-coding on-device")
+  val Protify = config("protify") extend Compile
 
   private[android] object Internal {
     val ProtifyAgentModule = "com.hanhuy.android" % "protify-agent" % BuildInfo.version
-    val Protify = config("protify") extend Compile
     val protifyDexAgent = TaskKey[File]("internal-protify-dex-agent", "internal key: dex protify-agent.jar")
     val protifyDexJar = TaskKey[File]("internal-protify-dex-jar", "internal key: create a jar containing all dexes")
     val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
