@@ -46,6 +46,7 @@ val plugin = project.in(file("sbt-plugin")).settings(
     "-Dplugin.version=" + version.value
   ),
   bintrayOrganization in bintray := None,
+  libraryDependencies += "com.hanhuy.sbt" %% "bintray-update-checker" % "0.1",
   mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value
 ).dependsOn(common % "provided")
 

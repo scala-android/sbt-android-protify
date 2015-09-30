@@ -6,6 +6,7 @@ import java.net.URLEncoder
 import android.Keys.Internal._
 import android.{BuildOutput, Aggregate, Dex}
 import com.android.ddmlib.IDevice
+import com.hanhuy.sbt.bintray.UpdateChecker
 import sbt.Def.Initialize
 import sbt._
 import sbt.Keys._
@@ -35,8 +36,24 @@ object Plugin extends AutoPlugin {
   val autoImport = Keys
 
 
-  override def projectSettings =
-    updateCheck in Keys.Protify := UpdateChecker(streams.value.log) :: Nil
+  override def projectSettings = Seq(updateCheck in Keys.Protify := {
+    val log = streams.value.log
+    UpdateChecker("pfn", "sbt-plugins", "android-protify") {
+      case Left(t) =>
+        log.debug("Failed to load version info: " + t)
+      case Right((versions, current)) =>
+        log.debug("available versions: " + versions)
+        log.debug("current version: " + BuildInfo.version)
+        log.debug("latest version: " + current)
+        if (versions(BuildInfo.version)) {
+          if (BuildInfo.version != current) {
+            log.warn(
+              s"UPDATE: A newer android-protify is available:" +
+                s" $version, currently running: ${BuildInfo.version}")
+          }
+        }
+    }
+  })
 
   override def globalSettings = (onLoad := onLoad.value andThen { s =>
     Project.runTask(updateCheck in Keys.Protify, s).fold(s)(_._1)
