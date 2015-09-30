@@ -1,12 +1,8 @@
 package com.hanhuy.android.protify.agent.internal;
 
-import android.annotation.TargetApi;
-import android.app.Activity;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
-import android.content.pm.*;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Process;
@@ -16,7 +12,6 @@ import com.hanhuy.android.protify.agent.ProtifyApplication;
 
 import java.io.*;
 import java.nio.channels.FileChannel;
-import java.util.List;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipOutputStream;
 
@@ -24,53 +19,32 @@ import java.util.zip.ZipOutputStream;
  * @author pfnguyen
  */
 public class ProtifyReceiver extends BroadcastReceiver {
+
+    static void broadcast(Context c, String action) {
+        Intent bc = new Intent(c, ProtifyReceiver2.class);
+        bc.setAction(action);
+        c.sendBroadcast(bc);
+    }
+
     private final static String TAG = "ProtifyReceiver";
     @Override
     public void onReceive(Context context, Intent intent) {
         final String action = intent == null ? null : intent.getAction();
         Log.v(TAG, "Received action: " + action);
-        boolean ltV14 = Build.VERSION.SDK_INT < 14;
-        Activity top = ltV14 ? null : LifecycleListener.getInstance().getTopActivity();
         if (Intents.PROTIFY_INTENT.equals(action)) {
             InstallState result = install(intent.getExtras(), context);
-            if (result.dex || (result.resources && ltV14)) {
+            if (result.dex) {
                 Log.v(TAG, "Updated dex, restarting process");
-                if (top != null || ltV14) {
-                    Intent reset = new Intent(context, ProtifyActivity.class);
-                    reset.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    context.startActivity(reset);
-                } else {
-                    Process.killProcess(Process.myPid());
-                }
+                broadcast(context, Intents.RESTART_INTENT);
             } else if (result.resources) {
                 Log.v(TAG, "Updated resources, recreating activities");
-                recreateActivity(top);
-                if (top == null) {
-                    ApplicationInfo info = context.getApplicationInfo();
-                    PackageManager pm = context.getPackageManager();
-                    Intent mainIntent = new Intent(Intent.ACTION_MAIN);
-                    mainIntent.addCategory(Intent.CATEGORY_LAUNCHER);
-                    List<ResolveInfo> activities = pm.queryIntentActivities(mainIntent, 0);
-                    for (ResolveInfo ri : activities) {
-                        if (info.packageName.equals(ri.activityInfo.packageName)) {
-                            Intent main = new Intent();
-                            main.setComponent(new ComponentName(info.packageName, ri.activityInfo.name));
-                            main.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                            context.startActivity(main);
-                            break;
-                        }
-                    }
-                } else {
-                    Intent bringToFront = (Intent) top.getIntent().clone();
-                    bringToFront.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_REORDER_TO_FRONT);
-                    context.startActivity(bringToFront);
-                }
+                broadcast(context, Intents.RECREATE_INTENT);
             }
         } else if (Intents.INSTALL_INTENT.equals(action)) {
             InstallState result = install(intent.getExtras(), context);
             if (result.dex || result.resources) {
                 Log.v(TAG, "Installed new resources or dex, restarting process");
-                Process.killProcess(Process.myPid());
+                broadcast(context, Intents.STOP_INTENT);
             }
         } else if (Intents.CLEAN_INTENT.equals(action)) {
             Log.v(TAG, "Clearing resources and dex from cache");
@@ -85,13 +59,7 @@ public class ProtifyReceiver extends BroadcastReceiver {
             } catch (Throwable t) {
                 // noop don't care
             }
-            if (top != null) {
-                Intent reset = new Intent(context, ProtifyActivity.class);
-                reset.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(reset);
-            } else {
-                Process.killProcess(Process.myPid());
-            }
+            broadcast(context, Intents.RESTART_INTENT);
         }
     }
 
@@ -168,10 +136,5 @@ public class ProtifyReceiver extends BroadcastReceiver {
             this.resources = resources;
             this.dex = dex;
         }
-    }
-
-    @TargetApi(11)
-    private static void recreateActivity(Activity a) {
-        if (a != null) a.recreate();
     }
 }

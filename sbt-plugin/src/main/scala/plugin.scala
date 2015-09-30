@@ -269,8 +269,10 @@ object Keys {
               val intentFilterAction2 = new Elem(null, "action", actionName2, TopScope, minimizeEmpty = true)
               val intentFilter = new Elem(null, "intent-filter", Null, TopScope, minimizeEmpty = true,
                 intentFilterAction0, intentFilterAction1, intentFilterAction2)
+              val receiverProcess = new PrefixedAttribute(androidPrefix,
+                "process", ":protify", Null)
               val receiverName = new PrefixedAttribute(androidPrefix,
-                "name", "com.hanhuy.android.protify.agent.internal.ProtifyReceiver", Null)
+                "name", "com.hanhuy.android.protify.agent.internal.ProtifyReceiver", receiverProcess)
               val receiverPermission = new PrefixedAttribute(androidPrefix,
                 "permission", "android.permission.INSTALL_PACKAGES", receiverName)
               val receiverExported = new PrefixedAttribute(androidPrefix,
@@ -284,7 +286,13 @@ object Keys {
 //                <action android:name="com.hanhuy.android.protify.action.PROTIFY"/>
 //              </intent-filter>
 //            </receiver>
-              Elem(prefix, "application", withNameAttr, scope, true, children :+ activityE :+ receiverE:_*)
+              val receiverName2 = new PrefixedAttribute(androidPrefix,
+                "name", "com.hanhuy.android.protify.agent.internal.ProtifyReceiver2", Null)
+              val receiverExported2 = new PrefixedAttribute(androidPrefix,
+                "exported", "false", receiverName2)
+              val receiverE2 = new Elem(null, "receiver", receiverExported2, TopScope,
+                minimizeEmpty = true, intentFilter)
+              Elem(prefix, "application", withNameAttr, scope, true, children :+ activityE :+ receiverE :+ receiverE2:_*)
             case x => x
           }
         }
@@ -712,8 +720,8 @@ object Keys {
     val pd = (predex in Android).value.flatMap(_._2 * "*.dex" get) map { f =>
       val name = f.getParentFile.getName.dropRight(4) // ".jar"
       val ext = f.getName match {
-        case enumRe(num) ⇒ s"_$num"
-        case _ ⇒ ""
+        case enumRe(num) => s"_$num"
+        case _ => ""
       }
       (f, s"protify-dex/$name$ext.dex")
     }

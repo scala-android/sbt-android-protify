@@ -1,5 +1,6 @@
 package com.hanhuy.android.protify.agent;
 
+import android.app.ActivityManager;
 import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
@@ -31,43 +32,75 @@ public class ProtifyApplication extends Application {
     private final static String TAG = "ProtifyApplication";
     private final String realApplicationClass;
     private Application realApplication;
+    private Boolean isProtifyProcess = null;
+
+    public boolean isProtifyProcess(Context c) {
+        if (isProtifyProcess != null) {
+            return isProtifyProcess;
+        }
+        ActivityManager am = (ActivityManager) c.getSystemService(Context.ACTIVITY_SERVICE);
+        List<ActivityManager.RunningAppProcessInfo> infos = am.getRunningAppProcesses();
+        int pid = android.os.Process.myPid();
+        ActivityManager.RunningAppProcessInfo rInfo = null;
+
+        for (ActivityManager.RunningAppProcessInfo info : infos) {
+            if (info.pid == pid) {
+                rInfo = info;
+                break;
+            }
+        }
+        if (rInfo != null)
+            Log.v(TAG, "process name: " + rInfo.processName);
+        isProtifyProcess = rInfo != null && rInfo.processName.endsWith(":protify");
+        return isProtifyProcess;
+    }
 
     public ProtifyApplication() {
         String[] applicationInfo = getResourceAsString("protify_application_info.txt").split("\n");
         realApplicationClass = applicationInfo[0].trim();
-        Log.d(TAG, "Real application class: [" + realApplicationClass + "]");
+        Log.d(TAG, "Real application class: [" + realApplicationClass + "]", new Exception());
         Protify.installed = true;
     }
 
     @Override
     protected void attachBaseContext(Context base) {
-        DexLoader.install(base);
-
-        createRealApplication();
+        boolean shouldInstall = !isProtifyProcess(base);
+        if (shouldInstall) {
+            DexLoader.install(base);
+            createRealApplication();
+        }
         super.attachBaseContext(base);
 
-        try {
-            Method attachBaseContext = ContextWrapper.class.getDeclaredMethod(
-                    "attachBaseContext", Context.class);
-            attachBaseContext.setAccessible(true);
-            attachBaseContext.invoke(realApplication, base);
+        if (shouldInstall) {
+            try {
+                Method attachBaseContext = ContextWrapper.class.getDeclaredMethod(
+                        "attachBaseContext", Context.class);
+                attachBaseContext.setAccessible(true);
+                attachBaseContext.invoke(realApplication, base);
 
-        } catch (Exception e) {
-            throw new IllegalStateException(e);
-        }
+            } catch (Exception e) {
+                throw new IllegalStateException(e);
+            }
 
-        if (Build.VERSION.SDK_INT >= 14) {
-            realApplication.registerActivityLifecycleCallbacks(
-                    LifecycleListener.getInstance());
+            if (Build.VERSION.SDK_INT >= 14) {
+                realApplication.registerActivityLifecycleCallbacks(
+                        LifecycleListener.getInstance());
+            }
         }
     }
 
     @Override
     public void onCreate() {
-        installRealApplication();
-        installExternalResources(this);
+        boolean shouldInstall = !isProtifyProcess(this);
+
+        if (shouldInstall) {
+            installRealApplication();
+            installExternalResources(this);
+        }
+
         super.onCreate();
-        realApplication.onCreate();
+        if (shouldInstall)
+            realApplication.onCreate();
     }
 
     @SuppressWarnings("unchecked")
