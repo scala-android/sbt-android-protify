@@ -2,7 +2,7 @@
 
 [![Join the chat at https://gitter.im/pfn/protify](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/pfn/protify?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Current version is 1.1.6
+Current version is 1.1.7
 
 ## Features:
 
@@ -33,7 +33,7 @@ Current version is 1.1.6
      * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.0.0")' > project/plugins.sbt`
      * `echo 'object Build extends android.GradleBuild' > project/build.scala`
 4. Add the protify plugin:
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.6")' >> project/plugins.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.7")' >> project/plugins.sbt`
 5. Add `protifySettings`: `echo protifySettings >> build.sbt`
 6. Run SBT
 7. Select device to run on by using the `devices` and `device` commands. Run

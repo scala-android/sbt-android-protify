@@ -49,7 +49,7 @@ object Plugin extends AutoPlugin {
           if (BuildInfo.version != current) {
             log.warn(
               s"UPDATE: A newer android-protify is available:" +
-                s" $version, currently running: ${BuildInfo.version}")
+                s" $current, currently running: ${BuildInfo.version}")
           }
         }
     }
