@@ -3,6 +3,8 @@ package com.hanhuy.android.protify.agent;
 import android.app.Application;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.pm.ApplicationInfo;
+import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.os.Build;
@@ -170,17 +172,27 @@ public class ProtifyApplication extends Application {
 
     public static void installExternalResources(Context context) {
         File f = ProtifyResources.getResourcesFile(context);
+        try {
+            ApplicationInfo info = context.getPackageManager().getApplicationInfo(
+                    context.getPackageName(), PackageManager.GET_META_DATA);
+            if (info != null && new File(info.sourceDir).lastModified() > f.lastModified()) {
+                Log.v(TAG, "Deleting outdated external resources");
+                f.delete();
+            }
+        } catch (PackageManager.NameNotFoundException e) {
+            throw new IllegalStateException(e);
+        }
         if (f.isFile() && f.length() > 0) {
             Log.v(TAG, "Installing external resource file: " + f);
             if (Build.VERSION.SDK_INT >= 18)
                 V19Resources.install(f.getAbsolutePath());
             else
                 V4Resources.install(f.getAbsolutePath());
+            resourceInstallTime = System.currentTimeMillis();
         }
-        resourceInstallTime = System.currentTimeMillis();
     }
 
-    private static long resourceInstallTime = 0;
+    private static long resourceInstallTime = System.currentTimeMillis();
 
     public static long getResourceInstallTime() {
         return resourceInstallTime;

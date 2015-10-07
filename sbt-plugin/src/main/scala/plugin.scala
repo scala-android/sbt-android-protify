@@ -88,9 +88,9 @@ object Keys {
     protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Compile)
   ) ++ inConfig(Protify)(List(
     clean <<= protifyCleanTaskDef,
-    install <<= protifyInstallTaskDef,
-    // TODO update to use android.Keys.debug once 1.5.1 is available
-    InputKey[Unit]("debug") <<= protifyRunTaskDef(true),
+    // because Keys.install and debug are implicitly 'in Android' (1.5.5+)
+    install in Protify <<= protifyInstallTaskDef,
+    debug in Protify <<= protifyRunTaskDef(true),
     run <<= protifyRunTaskDef(false),
     protifyDexAgent <<= protifyDexAgentTaskDef,
     protifyDexJar <<= protifyDexJarTaskDef,

@@ -2,7 +2,7 @@
 
 [![Join the chat at https://gitter.im/pfn/protify](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/pfn/protify?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Current version is 1.1.7
+Current version is 1.1.8
 
 ## Features:
 
@@ -24,16 +24,16 @@ Current version is 1.1.7
 1. Install sbt from http://scala-sbt.org, homebrew, ports, or your
    package manager of choice
 2. Install [android-sdk-plugin](https://github.com/pfn/android-sdk-plugin):
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.1")' > ~/.sbt/0.13/plugins/android.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.4")' > ~/.sbt/0.13/plugins/android.sbt`
 3. Start from an existing or new project (for trivial projects):
    `sbt "gen-android ..."` to create a new project, `sbt gen-android-sbt` to
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
    * Alternatively, use `android-gradle-build` when working with an existing gradle project:
-     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.0.0")' > project/plugins.sbt`
+     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.3")' > project/plugins.sbt`
      * `echo 'object Build extends android.GradleBuild' > project/build.scala`
 4. Add the protify plugin:
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.7")' >> project/plugins.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.8")' >> project/plugins.sbt`
 5. Add `protifySettings`: `echo protifySettings >> build.sbt`
 6. Run SBT
 7. Select device to run on by using the `devices` and `device` commands. Run
@@ -45,8 +45,8 @@ Current version is 1.1.7
 9. Enjoy
 
 LIMITATIONS:
-  * Deleting a resource such that the R constant will be removed will require
-    running `protify:clean` or else the build will break
+  * Deleting a constant value from `R` classes (removing resources) will
+    require running `protify:clean` or else the build will break
   * Singleton state will not be restored upon deploying new dex code.
     (or resources when on device api level <14)
 
@@ -54,6 +54,7 @@ LIMITATIONS:
 
 1. sync project in Android Studio
 2. Optionally add `idea-sbt-plugin` to run SBT inside of Android Studio
+3. `protifySettings` goes into any `app` projects' `build.sbt` only.
 
 ### IntelliJ integration
 
