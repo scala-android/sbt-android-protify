@@ -1,6 +1,9 @@
 package com.hanhuy.android.protify.agent;
 
+import android.annotation.TargetApi;
 import android.app.Application;
+import android.app.Notification;
+import android.app.NotificationManager;
 import android.content.Context;
 import android.content.ContextWrapper;
 import android.content.pm.ApplicationInfo;
@@ -33,6 +36,7 @@ public class ProtifyApplication extends Application {
     private final static String TAG = "ProtifyApplication";
     private final String realApplicationClass;
     private Application realApplication;
+    private final static int NOTIFICATION_ID = 0x70726f74; // = "prot"
 
     public ProtifyApplication() {
         String[] applicationInfo = getResourceAsString("protify_application_info.txt").split("\n");
@@ -41,9 +45,41 @@ public class ProtifyApplication extends Application {
         Protify.installed = true;
     }
 
+    @SuppressWarnings("deprecation")
+    private static Notification loadingNotification(Context c, String text) {
+        final Notification n;
+        // R is filtered out of DEX, find the resource manually
+        int icon = c.getResources().getIdentifier(
+                "protify_internal_ic_notification_loading", "drawable", c.getPackageName());
+        if (icon == 0)
+            throw new IllegalStateException(
+                    "protify_internal_ic_notification_loading not found");
+        if (Build.VERSION.SDK_INT >= 14) {
+            final Notification.Builder nb = new Notification.Builder(c);
+            nb
+                    .setContentTitle(text)
+                    .setSmallIcon(icon)
+                    .setProgress(100, 0, true)
+                    .setOngoing(true);
+            n = nb.getNotification();
+        } else {
+            n = new Notification();
+            n.icon = icon;
+            n.flags = Notification.FLAG_ONGOING_EVENT;
+            n.tickerText = text;
+        }
+        n.when = System.currentTimeMillis();
+        return n;
+    }
+
     @Override
     protected void attachBaseContext(Context base) {
+        NotificationManager nm = (NotificationManager) base.getSystemService(
+                NOTIFICATION_SERVICE);
+        nm.notify(NOTIFICATION_ID, loadingNotification(
+                base, "Protifying DEX for " + base.getPackageName()));
         DexLoader.install(base);
+        nm.cancel(NOTIFICATION_ID);
 
         createRealApplication();
         super.attachBaseContext(base);
@@ -184,10 +220,15 @@ public class ProtifyApplication extends Application {
         }
         if (f.isFile() && f.length() > 0) {
             Log.v(TAG, "Installing external resource file: " + f);
+            NotificationManager nm =
+                    (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
+            nm.notify(NOTIFICATION_ID, loadingNotification(
+                    context, "Protifying resources for " + context.getPackageName()));
             if (Build.VERSION.SDK_INT >= 18)
                 V19Resources.install(f.getAbsolutePath());
             else
                 V4Resources.install(f.getAbsolutePath());
+            nm.cancel(NOTIFICATION_ID);
             resourceInstallTime = System.currentTimeMillis();
         }
     }

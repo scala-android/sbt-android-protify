@@ -28,6 +28,7 @@ public class DexLoader {
 
     public static void install(Context context) {
         Log.i(TAG, "install");
+        long start = System.currentTimeMillis();
 
         if (Build.VERSION.SDK_INT < MIN_SDK_VERSION) {
             throw new RuntimeException("Multi dex installation failed. SDK " + Build.VERSION.SDK_INT
@@ -71,7 +72,7 @@ public class DexLoader {
             List<File> dexes = DexExtractor.load(context, applicationInfo, extractDir);
             // nothing to install if not present
             if (!dexes.isEmpty()) {
-                Log.v(TAG, "Loading secondary dexes: " + dexes);
+                Log.v(TAG, "Loading secondary dexes");
                 installSecondaryDexes(loader, dexDir, dexes);
             }
 
@@ -79,7 +80,8 @@ public class DexLoader {
             Log.e(TAG, "Protify  classloader installation failure", e);
             throw new RuntimeException("Protify classloader installation failed (" + e.getMessage() + ").", e);
         }
-        Log.i(TAG, "install done");
+        long elapsed = System.currentTimeMillis() - start;
+        Log.i(TAG, "install done " + elapsed + "ms");
     }
 
     public static File getDexExtractionDir(Context context)

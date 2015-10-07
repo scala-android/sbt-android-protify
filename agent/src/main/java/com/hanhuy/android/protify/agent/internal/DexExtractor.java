@@ -183,12 +183,8 @@ public class DexExtractor {
             return;
         }
         for (File oldFile : files) {
-            Log.i(TAG, "Trying to delete old file " + oldFile.getPath() + " of size " +
-                    oldFile.length());
             if (!oldFile.delete()) {
                 Log.w(TAG, "Failed to delete old file " + oldFile.getPath());
-            } else {
-                Log.i(TAG, "Deleted old file " + oldFile.getPath());
             }
         }
     }
@@ -199,7 +195,6 @@ public class DexExtractor {
         InputStream in = apk.getInputStream(dexFile);
         File tmp = File.createTempFile(extractedFilePrefix, DEX_SUFFIX,
                 extractTo.getParentFile());
-        Log.i(TAG, "Extracting " + tmp.getPath());
         try {
             OutputStream out = new BufferedOutputStream(new FileOutputStream(tmp));
             try {
@@ -212,11 +207,11 @@ public class DexExtractor {
             } finally {
                 out.close();
             }
-            Log.i(TAG, "Renaming to " + extractTo.getPath());
             if (!tmp.renameTo(extractTo)) {
                 throw new IOException("Failed to rename \"" + tmp.getAbsolutePath() +
                         "\" to \"" + extractTo.getAbsolutePath() + "\"");
             }
+            Log.i(TAG, "Extracted " + extractTo.getPath());
         } finally {
             closeQuietly(in);
             tmp.delete(); // return status ignored
