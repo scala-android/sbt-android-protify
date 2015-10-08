@@ -4,8 +4,10 @@ import android.annotation.TargetApi;
 import android.app.Application;
 import android.app.Notification;
 import android.app.NotificationManager;
+import android.app.PendingIntent;
 import android.content.Context;
 import android.content.ContextWrapper;
+import android.content.Intent;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.AssetManager;
@@ -67,6 +69,10 @@ public class ProtifyApplication extends Application {
             n.icon = icon;
             n.flags = Notification.FLAG_ONGOING_EVENT;
             n.tickerText = text;
+            n.setLatestEventInfo(c, text, null,
+                    PendingIntent.getBroadcast(c, 0, new Intent(
+                            "com.hanhuy.android.protify.internal.action.NOOP"),
+                            0));
         }
         n.when = System.currentTimeMillis();
         return n;
@@ -220,15 +226,10 @@ public class ProtifyApplication extends Application {
         }
         if (f.isFile() && f.length() > 0) {
             Log.v(TAG, "Installing external resource file: " + f);
-            NotificationManager nm =
-                    (NotificationManager) context.getSystemService(NOTIFICATION_SERVICE);
-            nm.notify(NOTIFICATION_ID, loadingNotification(
-                    context, "Protifying resources for " + context.getPackageName()));
             if (Build.VERSION.SDK_INT >= 18)
                 V19Resources.install(f.getAbsolutePath());
             else
                 V4Resources.install(f.getAbsolutePath());
-            nm.cancel(NOTIFICATION_ID);
             resourceInstallTime = System.currentTimeMillis();
         }
     }
