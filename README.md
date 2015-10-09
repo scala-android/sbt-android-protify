@@ -2,7 +2,7 @@
 
 [![Join the chat at https://gitter.im/pfn/protify](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/pfn/protify?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Current version is 1.1.10
+Current version is 1.1.11
 
 ## Features:
 
@@ -37,7 +37,7 @@ Current version is 1.1.10
      * `echo >> build.sbt`
        * Replace `Some(...)` with `None` if you don't have a flavor or build type to apply
 4. Install the `android-protify` SBT plugin, also from the project base, do:
-   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.10")' >> project/plugins.sbt`
+   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.11")' >> project/plugins.sbt`
    * For every application sub-project, do: `echo 'protifySettings' > APP-PROJECT-DIR/protify.sbt`
 5. Launch SBT, `sbt` (first time's gonna take a while, downloading the internet and all)
 5. Build and install the application normally, at least once:
@@ -61,7 +61,7 @@ Current version is 1.1.10
      * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.3")' > project/plugins.sbt`
      * `echo 'object Build extends android.GradleBuild' > project/build.scala`
 4. Add the protify plugin:
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.10")' >> project/plugins.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.11")' >> project/plugins.sbt`
 5. Add `protifySettings`: `echo protifySettings >> build.sbt`
 6. Run SBT
 7. Select device to run on by using the `devices` and `device` commands. Run
