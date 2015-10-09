@@ -6,7 +6,7 @@ Current version is 1.1.11
 
 ## Features:
 
-* Multiple language support: Java, Scala, Kotlin
+* Multiple language support: Java (including retrolambda), Scala, Kotlin
 * No code changes to app required!
 * Support for appcompat-v7, design and support-v4 libraries
 * Most existing android projects
