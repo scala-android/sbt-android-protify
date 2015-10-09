@@ -8,9 +8,9 @@ Current version is 1.1.10
 
 * Multiple language support: Java, Scala, Kotlin
 * No code changes to app required!
-* appcompat-v7, design and support-v4 libraries
+* Support for appcompat-v7, design and support-v4 libraries
 * Most existing android projects
-* Android devices v4+
+* Android devices api level 4+
 * Dex sharding for near-instant deployment
 
 ## Demos:
@@ -19,7 +19,31 @@ Current version is 1.1.10
 
 ## Getting started:
 
-### Live coding
+### Android Studio / Gradle Quick Start
+
+1. Install sbt from http://scala-sbt.org, homebrew, ports, or your
+   package manager of choice
+2. Optionally add `idea-sbt-plugin` to run SBT inside of Android Studio
+3. Install the `android-gradle-build` SBT plugin to automatically load your
+   gradle build. From the base of your Android project, do:
+   * `mkdir project`
+   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.3")' > project/plugins.sbt`
+   * `echo >> project/plugins.sbt`
+   * `echo 'object Build extends android.GradleBuild' > project/gradle.scala`
+   * If you have any flavors or build types that must be loaded:
+     * `echo 'android.Plugin.withVariant("PROJECT-NAME (e.g. app)", Some("BUILD-TYPE"), Some("FLAVOR"))' > build.sbt`
+     * `echo >> build.sbt`
+       * Replace `Some(...)` with `None` if you don't have a flavor or build type to apply
+4. Install the `android-protify` SBT plugin, also from the project base, do:
+   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.10")' > project/plugins.sbt`
+   * For every application sub-project, do: `echo 'protifySettings' > APP-PROJECT-DIR/protify.sbt`
+5. Launch SBT, `sbt`
+5. Build and install the application normally, at least once:
+   * `PROJECT-NAME/android:install` (or `run` instead of `install`)
+6. Thereafter: `PROJECT-NAME/protify`, do `~PROJECT-NAME/protify` to
+   automatically trigger on all source changes
+
+### Everyone else:
 
 1. Install sbt from http://scala-sbt.org, homebrew, ports, or your
    package manager of choice
@@ -49,12 +73,7 @@ LIMITATIONS:
     require running `protify:clean` or else the build will break
   * Singleton state will not be restored upon deploying new dex code.
     (or resources when on device api level <14)
-
-### Android Studio / Gradle integration
-
-1. sync project in Android Studio
-2. Optionally add `idea-sbt-plugin` to run SBT inside of Android Studio
-3. `protifySettings` goes into any `app` projects' `build.sbt` only.
+  * NDK is not supported at the moment
 
 ### IntelliJ integration
 
