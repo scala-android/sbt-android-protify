@@ -37,7 +37,7 @@ Current version is 1.1.10
      * `echo >> build.sbt`
        * Replace `Some(...)` with `None` if you don't have a flavor or build type to apply
 4. Install the `android-protify` SBT plugin, also from the project base, do:
-   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.10")' > project/plugins.sbt`
+   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.10")' >> project/plugins.sbt`
    * For every application sub-project, do: `echo 'protifySettings' > APP-PROJECT-DIR/protify.sbt`
 5. Launch SBT, `sbt` (first time's gonna take a while, downloading the internet and all)
 5. Build and install the application normally, at least once:
