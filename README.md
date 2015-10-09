@@ -24,8 +24,10 @@ Current version is 1.1.10
 1. Install sbt from http://scala-sbt.org, homebrew, ports, or your
    package manager of choice
 2. Optionally add `idea-sbt-plugin` to run SBT inside of Android Studio
-3. Install the `android-gradle-build` SBT plugin to automatically load your
-   gradle build. From the base of your Android project, do:
+3. Install the
+   [`android-gradle-build`](https://github.com/pfn/android-sdk-plugin/blob/master/GRADLE.md)
+   SBT plugin to automatically load your gradle build. From the base of your
+   Android project, do:
    * `mkdir project`
    * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.3")' > project/plugins.sbt`
    * `echo >> project/plugins.sbt`
