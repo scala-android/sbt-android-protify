@@ -5,7 +5,7 @@ import java.net.URLEncoder
 
 import android.Keys.Internal._
 import android.{BuildOutput, Aggregate, Dex}
-import com.android.ddmlib.IDevice
+import com.android.ddmlib.{NullOutputReceiver, IDevice}
 import com.hanhuy.sbt.bintray.UpdateChecker
 import sbt.Def.Initialize
 import sbt._
@@ -204,10 +204,17 @@ object Keys {
       val all = allDevices.value
       implicit val output = outputLayout.value
       val layout = projectLayout.value
+      val pkg = applicationId.value
       val s = streams.value
       install.value
-      def installed(d: IDevice): Unit =
+      def installed(d: IDevice): Unit = {
+        val api = Try(d.getProperty(IDevice.PROP_BUILD_API_LEVEL).toInt).toOption getOrElse 0
+        if (api >= 23)
+          d.executeShellCommand(
+            s"pm grant $pkg android.permission.READ_EXTERNAL_STORAGE",
+            NullOutputReceiver.getReceiver)
         IO.copyFile(layout.protifyDexHash, layout.protifyInstalledHash(d))
+      }
 
       if (all) android.Commands.deviceList(sdkPath.value, s.log) foreach installed
       else android.Commands.targetDevice(sdkPath.value, s.log) foreach installed

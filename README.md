@@ -81,6 +81,13 @@ LIMITATIONS:
   * Singleton state will not be restored upon deploying new dex code.
     (or resources when on device api level <14)
   * NDK is not supported at the moment
+  * When target device api level >= 23,
+    `android.permission.READ_EXTERNAL_STORAGE` will automatically be granted.
+    This means `checkSelfPermission("android.permission.READ_EXTERNAL_STORAGE")`
+    will always return true while building with protify loaded. You will not be
+    able to properly test requesting `READ_EXTERNAL_STORAGE` at runtime when
+    using protify. Reading external storage is required to load incremental
+    DEX and resource files.
 
 ### IntelliJ integration
 
