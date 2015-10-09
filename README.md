@@ -73,6 +73,9 @@ Current version is 1.1.10
 9. Enjoy
 
 LIMITATIONS:
+  * Manifest changes will require `android:install` again (i.e.
+    adding/removing: activities, services, permissions, receivers, etc).
+    Incremental deployment cannot modify manifest.
   * Deleting a constant value from `R` classes (removing resources) will
     require running `protify:clean` or else the build will break
   * Singleton state will not be restored upon deploying new dex code.
