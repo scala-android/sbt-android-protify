@@ -80,7 +80,8 @@ LIMITATIONS:
     require running `protify:clean` or else the build will break
   * Singleton state will not be restored upon deploying new dex code.
     (or resources when on device api level <14)
-  * NDK is not supported at the moment
+  * NDK is not supported at the moment (initial install works, no `protify`
+    updates when jni code changes)
   * When target device api level >= 23,
     `android.permission.READ_EXTERNAL_STORAGE` will automatically be granted.
     This means `checkSelfPermission("android.permission.READ_EXTERNAL_STORAGE")`
