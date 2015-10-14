@@ -725,15 +725,16 @@ object Keys {
       (f, s"protify-dex/$name$ext.dex")
     }
 
-    val prefixlen = "protify-dex/".length
-
-    val hashes = (dx ++ pd) map { case (f, path) =>
-      path.substring(prefixlen) + ":" + Hash.toHex(Hash(f))
-    }
-
-    IO.writeLines(layout.protifyDexHash, hashes)
-
-    IO.jar(dx ++ pd, layout.protifyDexJar, new java.util.jar.Manifest)
+    // must check FilesInfo.hash because shardedDex copies into final location
+    FileFunction.cached(streams.value.cacheDirectory / "protify-dex.jar", FilesInfo.hash) { in =>
+      val prefixlen = "protify-dex/".length
+      val hashes = (dx ++ pd) map { case (f, path) =>
+        path.substring(prefixlen) + ":" + Hash.toHex(Hash(f))
+      }
+      IO.writeLines(layout.protifyDexHash, hashes)
+      IO.jar(dx ++ pd, layout.protifyDexJar, new java.util.jar.Manifest)
+      Set(layout.protifyDexJar, layout.protifyDexHash)
+    }((dx ++ pd).map(_._1).toSet)
 
     layout.protifyDexJar
   }
@@ -747,7 +748,7 @@ object Keys {
     val idsfile = layout.protifyIdsXml
     idsfile.getParentFile.mkdirs()
     if (rtxt.isFile) {
-      FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.lastModified) { in =>
+      FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.hash) { in =>
         val values = (layout.mergedRes ** "values*" ** "*.xml").get
         import scala.xml._
         val allnames = values.flatMap { f =>
