@@ -639,7 +639,7 @@ object Keys {
     }
 
     ()
-  } dependsOn install
+  } dependsOn (install in Protify)
   val protifyCleanTaskDef = Def.task {
     val st = streams.value
     val cacheDirectory = (streams in protify).value.cacheDirectory / "protify"
