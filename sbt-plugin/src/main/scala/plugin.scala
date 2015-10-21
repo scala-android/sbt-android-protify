@@ -769,7 +769,7 @@ object Keys {
           IO.foldLines(in, (List("</resources>"), List("</resources>"))) { case ((xs, ys), line) =>
             val parts = line.split(" ")
             val cls = parts(1)
-            val nm = allnames.getOrElse(parts(2), parts(2))
+            val nm = allnames.getOrElse(parts(2), parts(2)).trim
             val value = parts(3)
             if ("styleable" != cls)
               ( s"""  <public type="$cls" name="$nm" id="$value"/>""" :: xs,
