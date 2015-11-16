@@ -221,6 +221,8 @@ object Keys {
       ()
     },
     processManifest := {
+      if (libraryProject.value)
+        android.Plugin.fail("protifySettings cannot be applied to libraryProject")
       val processed = processManifest.value
       if (apkbuildDebug.value()) {
         val pkg = packageForR.value
