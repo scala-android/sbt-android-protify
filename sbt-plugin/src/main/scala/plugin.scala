@@ -171,12 +171,12 @@ object Keys {
       val debug = apkbuildDebug.value()
       if (debug) Def.task {
         Aggregate.Apkbuild(packagingOptions.value,
-          debug, (protifyDexAgent in Protify).value, Nil,
+          debug, apkDebugSigningConfig.value, (protifyDexAgent in Protify).value, Nil,
           collectJni.value, resourceShrinker.value)
 
       } else Def.task {
         Aggregate.Apkbuild(packagingOptions.value,
-          debug, (dex in Android).value, predex.value,
+          debug, apkDebugSigningConfig.value, (dex in Android).value, predex.value,
           collectJni.value, resourceShrinker.value)
 
       }
@@ -198,7 +198,7 @@ object Keys {
         libraryProject.value, a.packagingOptions, a.resourceShrinker,
         a.dex, a.predex, a.collectJni,
         layout.collectJni, layout.resources, a.apkbuildDebug,
-        layout.unsignedApk(a.apkbuildDebug, n), logger, s)
+        a.debugSigningConfig, layout.unsignedApk(a.apkbuildDebug, n), logger, s)
     },
     install := {
       val all = allDevices.value

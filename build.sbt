@@ -33,7 +33,7 @@ val common = project.in(file("common")).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.6")
+    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.9-SNAPSHOT")
 ).settings(
   name := "android-protify",
   organization := "com.hanhuy.sbt",
