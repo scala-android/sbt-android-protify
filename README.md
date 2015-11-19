@@ -2,7 +2,7 @@
 
 [![Join the chat at https://gitter.im/pfn/protify](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/pfn/protify?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
-Current version is 1.1.12
+Current version is 1.1.13
 
 ## Features:
 
@@ -29,7 +29,7 @@ Current version is 1.1.12
    SBT plugin to automatically load your gradle build. From the base of your
    Android project, do:
    * `mkdir project`
-   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.5")' > project/plugins.sbt`
+   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.9")' > project/plugins.sbt`
    * `echo >> project/plugins.sbt`
    * `echo 'object Build extends android.GradleBuild' > project/gradle.scala`
    * If you have any flavors or build types that must be loaded:
@@ -37,7 +37,7 @@ Current version is 1.1.12
      * `echo >> build.sbt`
        * Replace `Some(...)` with `None` if you don't have a flavor or build type to apply
 4. Install the `android-protify` SBT plugin, also from the project base, do:
-   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.12")' >> project/plugins.sbt`
+   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.13")' >> project/plugins.sbt`
    * For every application sub-project, do: `echo 'protifySettings' > APP-PROJECT-DIR/protify.sbt`
 5. Launch SBT, `sbt` (first time's gonna take a while, downloading the internet and all)
 5. Build and install the application normally, at least once:
@@ -52,16 +52,16 @@ Current version is 1.1.12
 1. Install sbt from http://scala-sbt.org, homebrew, ports, or your
    package manager of choice
 2. Install [android-sdk-plugin](https://github.com/pfn/android-sdk-plugin):
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.6")' > ~/.sbt/0.13/plugins/android.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.9")' > ~/.sbt/0.13/plugins/android.sbt`
 3. Start from an existing or new project (for trivial projects):
    `sbt "gen-android ..."` to create a new project, `sbt gen-android-sbt` to
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
    * Alternatively, use `android-gradle-build` when working with an existing gradle project:
-     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.5")' > project/plugins.sbt`
+     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.9")' > project/plugins.sbt`
      * `echo 'object Build extends android.GradleBuild' > project/build.scala`
 4. Add the protify plugin:
-   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.12")' >> project/plugins.sbt`
+   `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.13")' >> project/plugins.sbt`
 5. Add `protifySettings`: `echo protifySettings >> build.sbt`
 6. Run SBT
 7. Select device to run on by using the `devices` and `device` commands. Run
