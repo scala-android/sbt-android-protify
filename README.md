@@ -80,6 +80,8 @@ LIMITATIONS:
     require running `protify:clean` or else the build will break
   * Singleton state will not be restored upon deploying new dex code.
     (or resources when on device api level <14)
+  * Android instrumented tests are not supported. They will fail to run
+    because of the sharded dex and re-located resource files.
   * NDK is not supported at the moment (initial install works, no `protify`
     updates when jni code changes)
   * When target device api level >= 23,
