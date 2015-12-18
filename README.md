@@ -72,26 +72,6 @@ Current version is 1.1.13
      using the live-code mechanism.
 9. Enjoy
 
-LIMITATIONS:
-  * Manifest changes will require `android:install` again (i.e.
-    adding/removing: activities, services, permissions, receivers, etc).
-    Incremental deployment cannot modify manifest.
-  * Deleting a constant value from `R` classes (removing resources) will
-    require running `protify:clean` or else the build will break
-  * Singleton state will not be restored upon deploying new dex code.
-    (or resources when on device api level <14)
-  * Android instrumented tests are not supported. They will fail to run
-    because of the sharded dex and re-located resource files.
-  * NDK is not supported at the moment (initial install works, no `protify`
-    updates when jni code changes)
-  * When target device api level >= 23,
-    `android.permission.READ_EXTERNAL_STORAGE` will automatically be granted.
-    This means `checkSelfPermission("android.permission.READ_EXTERNAL_STORAGE")`
-    will always return true while building with protify loaded. You will not be
-    able to properly test requesting `READ_EXTERNAL_STORAGE` at runtime when
-    using protify. Reading external storage is required to load incremental
-    DEX and resource files.
-
 ### Full IntelliJ IDEA & Android Studio integration
 
 To make it so that protify can be run when triggered in the IDE with a keystroke,
@@ -117,3 +97,23 @@ do the following
 ### Vim, etc.
 
 1. Just do any of the above getting started steps and follow your own workflow.
+
+#### LIMITATIONS
+  * Manifest changes will require `android:install` again (i.e.
+    adding/removing: activities, services, permissions, receivers, etc).
+    Incremental deployment cannot modify manifest.
+  * Deleting a constant value from `R` classes (removing resources) will
+    require running `protify:clean` or else the build will break
+  * Singleton state will not be restored upon deploying new dex code.
+    (or resources when on device api level <14)
+  * Android instrumented tests are not supported. They will fail to run
+    because of the sharded dex and re-located resource files.
+  * NDK is not supported at the moment (initial install works, no `protify`
+    updates when jni code changes)
+  * When target device api level >= 23,
+    `android.permission.READ_EXTERNAL_STORAGE` will automatically be granted.
+    This means `checkSelfPermission("android.permission.READ_EXTERNAL_STORAGE")`
+    will always return true while building with protify loaded. You will not be
+    able to properly test requesting `READ_EXTERNAL_STORAGE` at runtime when
+    using protify. Reading external storage is required to load incremental
+    DEX and resource files.
