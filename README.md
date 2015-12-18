@@ -13,9 +13,9 @@ Current version is 1.1.13
 * Android devices api level 4+
 * Dex sharding for near-instant deployment
 
-## Demos:
+## Demo:
 
-* [Live coding and hot deploy](https://youtu.be/LJLLyua0bYA)
+[![Live coding and hot deploy](http://img.youtube.com/vi/LJLLyua0bYA/0.jpg)](http://www.youtube.com/watch?v=LJLLyua0bYA)
 
 ## Getting started:
 
