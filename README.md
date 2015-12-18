@@ -29,7 +29,7 @@ Current version is 1.1.13
    SBT plugin to automatically load your gradle build. From the base of your
    Android project, do:
    * `mkdir project`
-   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.9")' > project/plugins.sbt`
+   * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.11")' > project/plugins.sbt`
    * `echo >> project/plugins.sbt`
    * `echo 'object Build extends android.GradleBuild' > project/gradle.scala`
    * If you have any flavors or build types that must be loaded:
@@ -58,7 +58,7 @@ Current version is 1.1.13
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
    * Alternatively, use `android-gradle-build` when working with an existing gradle project:
-     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.9")' > project/plugins.sbt`
+     * `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-gradle-build" % "1.1.11")' > project/plugins.sbt`
      * `echo 'object Build extends android.GradleBuild' > project/build.scala`
 4. Add the protify plugin:
    `echo 'addSbtPlugin("com.hanhuy.sbt" % "android-protify" % "1.1.13")' >> project/plugins.sbt`
