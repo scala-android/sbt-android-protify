@@ -15,7 +15,7 @@ Current version is 1.1.13
 
 ## Demos:
 
-* [Live coding](https://youtu.be/LJLLyua0bYA)
+* [Live coding and hot deploy](https://youtu.be/LJLLyua0bYA)
 
 ## Getting started:
 
