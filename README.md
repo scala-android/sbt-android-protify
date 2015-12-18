@@ -15,7 +15,7 @@ Current version is 1.1.13
 
 ## Demo:
 
-[![Live coding and hot deploy](http://img.youtube.com/vi/LJLLyua0bYA/0.jpg)](http://www.youtube.com/watch?v=LJLLyua0bYA)
+[![Live coding and hot deploy](http://img.youtube.com/vi/LJLLyua0bYA/mqdefault.jpg)](http://www.youtube.com/watch?v=LJLLyua0bYA)
 
 ## Getting started:
 
