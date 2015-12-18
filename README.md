@@ -92,9 +92,27 @@ LIMITATIONS:
     using protify. Reading external storage is required to load incremental
     DEX and resource files.
 
-### IntelliJ integration
+### Full IntelliJ IDEA & Android Studio integration
 
-1. It works automatically if you're already using `android-sdk-plugin` and SBT
+To make it so that protify can be run when triggered in the IDE with a keystroke,
+do the following
+
+1. Install [Scala plugin](https://plugins.jetbrains.com/plugin/1347?pr=idea) in IDE
+2. Install [SBT plugin](https://plugins.jetbrains.com/plugin/5007?pr=idea) in IDE
+3. Create a new `Run` configuration, press the dropdown next to the play button,
+   select `Edit Configurations`
+   * Press `+` -> `Android Application`
+   * Name the configuration `protify`, `instant run`, or whatever you like
+   * Select the `app` module
+   * Select `Do not deploy anything`
+   * Select `Do not launch activity`
+   * For target device, select anything that will not prompt
+   * Uncheck `Activate tool window`
+   * Remove `Make` from `Before launch`
+   * `Before launch` -> `+` -> `Add New Configuration` -> `SBT`
+     * In the drop down, edit the text to say `protify`
+4. You can now invoke `protify` directly as a run configuration and see changes
+   instantly (FSVO instant) appear on-device.
 
 ### Vim, etc.
 
