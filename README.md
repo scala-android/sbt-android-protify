@@ -104,8 +104,9 @@ do the following
     Incremental deployment cannot modify manifest.
   * Deleting a constant value from `R` classes (removing resources) will
     require running `protify:clean` or else the build will break
-  * Singleton state will not be restored upon deploying new dex code.
-    (or resources when on device api level <14)
+  * Object instance state, including singleton and static, will not be restored
+    upon deploying new dex code (or resources when on device api level <14).
+    All Android `Bundle`d state will be restored in all situations
   * Android instrumented tests are not supported. They will fail to run
     because of the sharded dex and re-located resource files.
   * NDK is not supported at the moment (initial install works, no `protify`
