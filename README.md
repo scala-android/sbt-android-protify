@@ -118,3 +118,10 @@ do the following
     able to properly test requesting `READ_EXTERNAL_STORAGE` at runtime when
     using protify. Reading external storage is required to load incremental
     DEX and resource files.
+
+#### TODO (volunteers wanted)
+  * Support NDK
+  * Write `protify` files into `/data/local/tmp` rather than `/sdcard` to bypass
+    `READ_EXTERNAL_STORAGE` permission
+  * Support instrumented testing. This would need implementation similar to
+    `MultiDexTestRunner`
