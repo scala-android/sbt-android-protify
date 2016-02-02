@@ -774,8 +774,8 @@ object Keys {
             val nm = allnames.getOrElse(parts(2), parts(2)).trim
             val value = parts(3)
             if ("styleable" != cls)
-              ( s"""  <public type="$cls" name="$nm" id="$value"/>""" :: xs,
-                if ("id" == cls) s"""  <item type="id" name="$nm"/>""" :: ys else ys)
+              ( if ("id" != cls || !nm.startsWith("Id.")) s"""  <public type="$cls" name="$nm" id="$value"/>""" :: xs else xs,
+                if ("id" == cls && !nm.startsWith("Id.")) s"""  <item type="id" name="$nm"/>""" :: ys else ys)
             else
               (xs, ys)
           }
@@ -800,8 +800,8 @@ object Keys {
     def protifyDexAgent = protify / "agent"
     def protifyDexJar = protify / "protify-dex.jar"
     def protifyDexHash = protify / "protify-dex-hash.txt"
-    def protifyIdsXml = layout.generatedRes / "values" / "ids.xml"
-    def protifyPublicXml = layout.mergedRes / "values" / "public.xml"
+    def protifyIdsXml = layout.generatedRes / "values" / "protify-ids.xml"
+    def protifyPublicXml = layout.mergedRes / "values" / "protify-public.xml"
     def protifyInstalledHash(dev: IDevice) = {
       val path = protify / "installed" / dev.safeSerial
       path.getParentFile.mkdirs()
