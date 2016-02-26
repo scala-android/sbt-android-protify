@@ -196,7 +196,7 @@ object Keys {
       android.Packaging.apkbuild(builder.value,
         if (a.apkbuildDebug) Seq(Attributed.blank(dexjar)) else Nil, Nil, dcpAg,
         libraryProject.value, a.packagingOptions, a.resourceShrinker,
-        a.dex, a.predex, a.collectJni,
+        a.dex, a.predex, ndkAbiFilter.value.toSet, a.collectJni,
         layout.collectJni, layout.resources, layout.collectResource, a.apkbuildDebug,
         a.debugSigningConfig, layout.unsignedApk(a.apkbuildDebug, n), logger, s)
     },

@@ -33,7 +33,7 @@ val common = project.in(file("common")).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.16")
+    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.19-SNAPSHOT")
 ).settings(
   name := "android-protify",
   organization := "com.hanhuy.sbt",
@@ -247,32 +247,6 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
   )
 ).dependsOn(lib, common)
 
-val test1 = android.Plugin.flavorOf(mobile, "test1").settings(
-  applicationId in Android := "com.hanhuy.android.protify.tests",
-  debugIncludesTests in Android := true,
-  instrumentTestRunner in Android :=
-    "android.support.test.runner.AndroidJUnitRunner",
-  libraryDependencies ++=
-    "com.android.support.test" % "runner" % "0.3" ::
-    "com.android.support.test.espresso" % "espresso-core" % "2.2" ::
-    Nil,
-  packagingOptions in Android := PackagingOptions(excludes = Seq("LICENSE.txt")),
-  proguardOptions in Android ++=
-    "-dontwarn junit.**" ::
-    "-dontwarn java.beans.**" ::
-    "-dontwarn java.lang.management.**" ::
-    "-dontwarn javax.lang.model.element.**" ::
-    "-dontwarn org.jmock.**" ::
-    "-dontwarn org.easymock.**" ::
-    "-dontwarn com.google.appengine.**" ::
-    "-keepclasseswithmembers class * { @org.junit.Test <methods>; }" ::
-    "-keepclassmembers class scala.reflect.ScalaSignature { java.lang.String bytes(); }" ::
-    "-keep class android.support.test.** { *; }" ::
-    Nil
-)
-
-test <<= test in (test1,Android)
-
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.1.14"
+version in Global := "1.1.15-SNAPSHOT"
