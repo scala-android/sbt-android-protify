@@ -231,7 +231,7 @@ object Keys {
         import scala.xml.transform._
         object ApplicationTransform extends RewriteRule {
 
-          import android.Tasks.ANDROID_NS
+          import android.Resources.ANDROID_NS
 
           override def transform(n: Node): Seq[Node] = n match {
             case Elem(prefix, "application", attribs, scope, children @ _*) =>
@@ -607,7 +607,7 @@ object Keys {
     val r = Def.spaceDelimited().parsed
     val manifestXml = l.processedManifest
     import scala.xml.XML
-    import android.Tasks.ANDROID_NS
+    import android.Resources.ANDROID_NS
     import android.Commands
     val m = XML.loadFile(manifestXml)
     // if an arg is specified, try to launch that
