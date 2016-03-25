@@ -24,6 +24,7 @@ val common = project.in(file("common")).settings(
         |package com.hanhuy.android.protify;
         |public class BuildInfo {
         |    public static String version = "${version.value}";
+        |    public static String name = "${name.value}";
         |}
       """.stripMargin
     IO.writeLines(dest, info :: Nil)
@@ -249,4 +250,4 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.1.16-SNAPSHOT"
+version in Global := "1.2.0-SNAPSHOT"

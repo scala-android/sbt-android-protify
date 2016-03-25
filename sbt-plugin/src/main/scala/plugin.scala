@@ -38,6 +38,11 @@ object Plugin extends AutoPlugin {
 
   override def projectSettings = Seq(updateCheck in Keys.Protify := {
     val log = streams.value.log
+
+    if (BuildInfo.name == "android-protify") {
+      log.warn("NOTICE: final version published at `com.hanhuy.sbt % android-protify`")
+      log.warn("""MIGRATION: `addSbtPlugin("org.scala-android" % "sbt-android-protify" % "1.2.0")`""")
+    }
     UpdateChecker("pfn", "sbt-plugins", "android-protify") {
       case Left(t) =>
         log.debug("Failed to load version info: " + t)

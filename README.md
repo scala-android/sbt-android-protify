@@ -122,7 +122,7 @@ do the following
 #### TODO (volunteers wanted)
   * Support NDK
   * Write `protify` files into `/data/local/tmp` rather than `/sdcard` to bypass
-    `READ_EXTERNAL_STORAGE` permission
+    `READ_EXTERNAL_STORAGE` permission, eliminates emulator SD card requirement
   * Support instrumented testing. This would need implementation similar to
     `MultiDexTestRunner`
   * give `ContentProvider`s the correct Application class, a la
