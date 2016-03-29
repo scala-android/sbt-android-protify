@@ -49,7 +49,7 @@ val plugin = project.in(file("sbt-plugin")).settings(
   bintrayOrganization in bintray := None,
   libraryDependencies += "com.hanhuy.sbt" %% "bintray-update-checker" % "0.1",
   mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value
-).dependsOn(common % "provided")
+).dependsOn(common % "compile-internal")
 
 val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   platformTarget in Android := "android-15",
@@ -121,7 +121,7 @@ val agent = project.in(file("agent")).settings(androidBuildAar).settings(
       </developers>,
   licenses := Seq("BSD-style" -> url("http://www.opensource.org/licenses/bsd-license.php")),
   homepage := Some(url("https://github.com/pfn/protify"))
-) dependsOn(common % "provided")
+) dependsOn(common % "compile-internal")
 
 val mobile = project.in(file("android")).settings(androidBuild).settings(
   platformTarget in Android := "android-22",
