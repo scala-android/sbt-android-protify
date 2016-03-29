@@ -1,5 +1,3 @@
-addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.0")
-
 {
   val ver = System.getProperty("plugin.version")
   if (ver == null)
@@ -7,6 +5,6 @@ addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.0")
       |The system property 'plugin.version' is not defined.
       |Specify this property using scriptedLaunchOpts -Dplugin.version."""
       .stripMargin)
-  else addSbtPlugin("com.hanhuy.sbt" % "android-protify" % ver)
+  else addSbtPlugin("org.scala-android" % "sbt-android-protify" % ver)
 }
 

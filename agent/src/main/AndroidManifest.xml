@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
-      package="com.hanhuy.android.protify.agent">
+      package="org.scala_android.protify.agent">
     <uses-sdk android:minSdkVersion="4"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE"/>
     <application/>

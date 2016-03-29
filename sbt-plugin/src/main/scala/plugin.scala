@@ -39,11 +39,7 @@ object Plugin extends AutoPlugin {
   override def projectSettings = Seq(updateCheck in Keys.Protify := {
     val log = streams.value.log
 
-    if (BuildInfo.name == "android-protify") {
-      log.warn("NOTICE: final version published at `com.hanhuy.sbt % android-protify`")
-      log.warn("""MIGRATION: `addSbtPlugin("org.scala-android" % "sbt-android-protify" % "1.2.0")`""")
-    }
-    UpdateChecker("pfn", "sbt-plugins", "android-protify") {
+    UpdateChecker("pfn", "sbt-plugins", "sbt-android-protify") {
       case Left(t) =>
         log.debug("Failed to load version info: " + t)
       case Right((versions, current)) =>
@@ -53,7 +49,7 @@ object Plugin extends AutoPlugin {
         if (versions(BuildInfo.version)) {
           if (BuildInfo.version != current) {
             log.warn(
-              s"UPDATE: A newer android-protify is available:" +
+              s"UPDATE: A newer sbt-android-protify is available:" +
                 s" $current, currently running: ${BuildInfo.version}")
           }
         }
@@ -73,7 +69,7 @@ object Keys {
   val Protify = config("protify") extend Compile
 
   private[android] object Internal {
-    val ProtifyAgentModule = "com.hanhuy.android" % "protify-agent" % BuildInfo.version
+    val ProtifyAgentModule = "org.scala-android" % "protify-agent" % BuildInfo.version
     val protifyDexAgent = TaskKey[File]("internal-protify-dex-agent", "internal key: dex protify-agent.jar")
     val protifyDexJar = TaskKey[File]("internal-protify-dex-jar", "internal key: create a jar containing all dexes")
     val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
@@ -127,7 +123,7 @@ object Keys {
   ) ++ inConfig(Compile)(
     dependencyClasspath :=
       dependencyClasspath.value.filterNot(
-        _.data.getName.startsWith("com.hanhuy.android-protify-agent-"))
+        _.data.getName.startsWith("org.scala-android-protify-agent-"))
   ) ++ inConfig(Android)(List(
     dexLegacyMode       := {
       val legacy = dexLegacyMode.value
@@ -695,7 +691,7 @@ object Keys {
     implicit val out = (outputLayout in Android).value
     val layout  = (projectLayout  in Android).value
     val u = (unmanagedJars in Compile).value
-    val agentJar = u.find(_.data.getName startsWith "com.hanhuy.android-protify-agent").get.data
+    val agentJar = u.find(_.data.getName startsWith "org.scala-android-protify-agent").get.data
     val bldr    = (builder        in Android).value
     val lib     = (libraryProject in Android).value
     val bin     = layout.protifyDexAgent

@@ -1,4 +1,4 @@
-addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.5.20")
+addSbtPlugin("org.scala-android" % "sbt-android" % "1.6.0-SNAPSHOT")
 
 resolvers += Resolver.url(
   "bintray-sbt-plugin-releases",

@@ -40,7 +40,7 @@ all future updates can be accessed by using
      * `echo 'android.Plugin.withVariant("PROJECT-NAME (e.g. app)", Some("BUILD-TYPE"), Some("FLAVOR"))' > build.sbt`
      * `echo >> build.sbt`
        * Replace `Some(...)` with `None` if you don't have a flavor or build type to apply
-4. Install the `android-protify` SBT plugin, also from the project base, do:
+4. Install the `sbt-android-protify` plugin, also from the project base, do:
    * `echo 'addSbtPlugin("org.scala-android" % "sbt-android-protify" % "1.2.0")' >> project/plugins.sbt`
    * For every application sub-project, do: `echo 'protifySettings' > APP-PROJECT-DIR/protify.sbt`
 5. Launch SBT, `sbt` (first time's gonna take a while, downloading the internet and all)
@@ -61,7 +61,7 @@ all future updates can be accessed by using
    `sbt "gen-android ..."` to create a new project, `sbt gen-android-sbt` to
    generate sbt files in an existing project. Non-trivial projects will need
    more advanced sbt configuration.
-   * Alternatively, use `android-gradle-build` when working with an existing gradle project:
+   * Alternatively, use `sbt-android-gradle` when working with an existing gradle project:
      * `echo 'addSbtPlugin("org.scala-android" % "sbt-android-gradle" % "1.2.0")' > project/plugins.sbt`
 4. Add the protify plugin:
    `echo 'addSbtPlugin("org.scala-android" % "sbt-android-protify" % "1.2.0")' >> project/plugins.sbt`

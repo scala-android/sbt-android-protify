@@ -34,10 +34,10 @@ val common = project.in(file("common")).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.6.0")
+    addSbtPlugin("org.scala-android" % "sbt-android" % "1.6.0")
 ).settings(
-  name := "android-protify",
-  organization := "com.hanhuy.sbt",
+  name := "sbt-android-protify",
+  organization := "org.scala-android",
   scalacOptions ++= Seq("-deprecation","-Xlint","-feature", "-unchecked"),
   sbtPlugin := true,
   repository in bintray := "sbt-plugins",
@@ -55,7 +55,7 @@ val plugin = project.in(file("sbt-plugin")).settings(
 val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   platformTarget in Android := "android-15",
   autoScalaLibrary := false,
-  organization := "com.hanhuy.android",
+  organization := "org.scala-android",
   name := "protify",
   publishMavenStyle := true,
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
@@ -96,7 +96,8 @@ val agent = project.in(file("agent")).settings(androidBuildAar).settings(
     }
   },
   autoScalaLibrary := false,
-  organization := "com.hanhuy.android",
+  organization := "org.scala-android",
+  packageForR := "com.hanhuy.android.protify.agent",
   name := "protify-agent",
   publishMavenStyle := true,
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
