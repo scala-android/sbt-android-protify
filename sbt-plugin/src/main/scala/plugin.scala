@@ -747,6 +747,15 @@ object Keys {
   }
 
   val protifyPublicResourcesTaskDef = Def.task {
+    val libcheckdir = streams.value.cacheDirectory / "protify-libcheck"
+    val libcheck = (libcheckdir * "*").get.headOption.map(_.getName)
+    val moduleHash = Hash.toHex(Hash((update in Compile).value.allModules.mkString(";")))
+    if (libcheck exists (_ != moduleHash)) {
+      android.Plugin.fail("libraryDependencies have changed, perform a clean build")
+    }
+    libcheckdir.mkdirs()
+    IO.touch(libcheckdir / moduleHash)
+
     implicit val out = (outputLayout in Android).value
     val layout = (projectLayout in Android).value
     val rtxt = layout.gen / "R.txt"
