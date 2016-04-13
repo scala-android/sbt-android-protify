@@ -197,8 +197,7 @@ object Keys {
       val dcpAg = m ++ u ++ dcp
       val dexjar = (protifyDexJar in Protify).value
       val s = streams.value
-      val logger = ilogger.value
-      logger(s.log)
+      val logger = ilogger.value(s.log)
       android.Packaging.apkbuild(builder.value(s.log),
         if (a.apkbuildDebug) Seq(Attributed.blank(dexjar)) else Nil, Nil, dcpAg,
         libraryProject.value, a, ndkAbiFilter.value.toSet,
