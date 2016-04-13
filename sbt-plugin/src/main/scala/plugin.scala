@@ -177,12 +177,12 @@ object Keys {
       if (debug) Def.task {
         Aggregate.Apkbuild(packagingOptions.value,
           debug, apkDebugSigningConfig.value, (protifyDexAgent in Protify).value, Nil,
-          collectJni.value, resourceShrinker.value)
+          collectJni.value, resourceShrinker.value, minSdkVersion.value.toInt)
 
       } else Def.task {
         Aggregate.Apkbuild(packagingOptions.value,
           debug, apkDebugSigningConfig.value, (dex in Android).value, predex.value,
-          collectJni.value, resourceShrinker.value)
+          collectJni.value, resourceShrinker.value, minSdkVersion.value.toInt)
 
       }
     },
@@ -197,13 +197,13 @@ object Keys {
       val dcpAg = m ++ u ++ dcp
       val dexjar = (protifyDexJar in Protify).value
       val s = streams.value
-      val logger = ilogger.value(s.log)
-      android.Packaging.apkbuild(builder.value,
+      val logger = ilogger.value
+      logger(s.log)
+      android.Packaging.apkbuild(builder.value(s.log),
         if (a.apkbuildDebug) Seq(Attributed.blank(dexjar)) else Nil, Nil, dcpAg,
-        libraryProject.value, a.packagingOptions, a.resourceShrinker,
-        a.dex, a.predex, ndkAbiFilter.value.toSet, a.collectJni,
-        layout.collectJni, layout.resources, layout.collectResource, a.apkbuildDebug,
-        a.debugSigningConfig, layout.unsignedApk(a.apkbuildDebug, n), logger, s)
+        libraryProject.value, a, ndkAbiFilter.value.toSet,
+        layout.collectJni, layout.resources, layout.collectResource,
+        layout.unsignedApk(a.apkbuildDebug, n), logger, s)
     },
     install := {
       val all = allDevices.value
@@ -708,12 +708,13 @@ object Keys {
     val dexOpts = Aggregate.Dex(
       (false,agentJar :: Nil),
       (dexMaxHeap               in Android).value,
+      (dexMaxProcessCount       in Android).value,
       false,
       file("/"), // pass a bogus file for main dex list, unused
       (dexMinimizeMain          in Android).value,
       (buildTools               in Android).value,
       (dexAdditionalParams      in Android).value)
-    Dex.dex(bldr, dexOpts, Nil, None, true, lib, bin, false, debug, s)
+    Dex.dex(bldr(s.log), dexOpts, Nil, None, true, lib, bin, false, debug, s)
   }
   private val protifyDexJarTaskDef = Def.task {
     implicit val out = (outputLayout in Android).value

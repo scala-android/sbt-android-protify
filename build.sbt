@@ -48,6 +48,7 @@ val plugin = project.in(file("sbt-plugin")).settings(
   ),
   bintrayOrganization in bintray := None,
   libraryDependencies += "com.hanhuy.sbt" %% "bintray-update-checker" % "0.1",
+  libraryDependencies += "com.google.code.findbugs" % "jsr305" % "3.0.1" % "compile-internal",
   mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value
 ).dependsOn(common % "compile-internal")
 
