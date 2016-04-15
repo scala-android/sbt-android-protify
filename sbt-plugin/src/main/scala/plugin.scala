@@ -608,14 +608,13 @@ object Keys {
     if (isLib)
       android.Plugin.fail("This project is not runnable, it has set 'libraryProject in Android := true")
 
-    val r = Def.spaceDelimited().parsed
     val manifestXml = l.processedManifest
     import scala.xml.XML
     import android.Resources.ANDROID_NS
     import android.Commands
     val m = XML.loadFile(manifestXml)
     // if an arg is specified, try to launch that
-    (if (r.isEmpty) None else Some(r mkString " ")) orElse ((m \\ "activity") find {
+    android.parsers.activityParser.parsed orElse ((m \\ "activity") find {
       // runs the first-found activity
       a => (a \ "intent-filter") exists { filter =>
         val attrpath = "@{%s}name" format ANDROID_NS
