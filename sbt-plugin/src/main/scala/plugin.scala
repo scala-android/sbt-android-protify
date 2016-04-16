@@ -69,7 +69,7 @@ object Keys {
   val Protify = config("protify") extend Compile
 
   private[android] object Internal {
-    val ProtifyAgentModule = "org.scala-android" % "protify-agent" % BuildInfo.version
+    val ProtifyAgentModule = "com.hanhuy.android" % "protify-agent" % BuildInfo.version
     val protifyDexAgent = TaskKey[File]("internal-protify-dex-agent", "internal key: dex protify-agent.jar")
     val protifyDexJar = TaskKey[File]("internal-protify-dex-jar", "internal key: create a jar containing all dexes")
     val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
@@ -123,7 +123,7 @@ object Keys {
   ) ++ inConfig(Compile)(
     dependencyClasspath :=
       dependencyClasspath.value.filterNot(
-        _.data.getName.startsWith("org.scala-android-protify-agent-"))
+        _.data.getName.startsWith("com.hanhuy.android-protify-agent-"))
   ) ++ inConfig(Android)(List(
     dexLegacyMode       := {
       val legacy = dexLegacyMode.value
@@ -691,7 +691,7 @@ object Keys {
     implicit val out = (outputLayout in Android).value
     val layout  = (projectLayout  in Android).value
     val u = (unmanagedJars in Compile).value
-    val agentJar = u.find(_.data.getName startsWith "org.scala-android-protify-agent").get.data
+    val agentJar = u.find(_.data.getName startsWith "com.hanhuy.android-protify-agent").get.data
     val bldr    = (builder        in Android).value
     val lib     = (libraryProject in Android).value
     val bin     = layout.protifyDexAgent

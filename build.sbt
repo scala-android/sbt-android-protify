@@ -96,7 +96,7 @@ val agent = project.in(file("agent")).settings(androidBuildAar).settings(
     }
   },
   autoScalaLibrary := false,
-  organization := "org.scala-android",
+  organization := "com.hanhuy.android",
   packageForR := "com.hanhuy.android.protify.agent",
   name := "protify-agent",
   publishMavenStyle := true,
