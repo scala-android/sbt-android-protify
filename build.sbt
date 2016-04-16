@@ -34,7 +34,7 @@ val common = project.in(file("common")).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.6.0-SNAPSHOT")
+    addSbtPlugin("com.hanhuy.sbt" % "android-sdk-plugin" % "1.6.0")
 ).settings(
   name := "android-protify",
   organization := "com.hanhuy.sbt",
@@ -251,4 +251,4 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.2.0-SNAPSHOT"
+version in Global := "1.2.0"
