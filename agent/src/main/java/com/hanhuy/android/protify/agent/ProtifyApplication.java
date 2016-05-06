@@ -1,6 +1,5 @@
 package com.hanhuy.android.protify.agent;
 
-import android.annotation.TargetApi;
 import android.app.Application;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -303,23 +302,13 @@ public class ProtifyApplication extends Application {
                 mGetInstance.setAccessible(true);
                 Object resourcesManager = mGetInstance.invoke(null);
 
-                Field mAssets = Resources.class.getDeclaredField("mAssets");
-                mAssets.setAccessible(true);
-
                 // Iterate over all known Resources objects
                 Field fMActiveResources = clazz.getDeclaredField("mActiveResources");
                 fMActiveResources.setAccessible(true);
                 @SuppressWarnings("unchecked")
                 Map<?, WeakReference<Resources>> arrayMap =
                         (Map<?, WeakReference<Resources>>) fMActiveResources.get(resourcesManager);
-                for (WeakReference<Resources> wr : arrayMap.values()) {
-                    Resources resources = wr.get();
-                    // Set the AssetManager of the Resources instance to our brand new one
-                    if (resources != null) {
-                        mAssets.set(resources, newAssetManager);
-                        resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
-                    }
-                }
+                setAssetManager(arrayMap, newAssetManager);
             } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
                     ClassNotFoundException | InvocationTargetException | InstantiationException e) {
                 throw new IllegalStateException(e);
@@ -350,28 +339,53 @@ public class ProtifyApplication extends Application {
                 mGetInstance.setAccessible(true);
                 Object resourcesManager = mGetInstance.invoke(null);
 
-                Field mAssets = Resources.class.getDeclaredField("mAssets");
-                mAssets.setAccessible(true);
-
                 // Iterate over all known Resources objects
                 Field fMActiveResources = clazz.getDeclaredField("mActiveResources");
                 fMActiveResources.setAccessible(true);
                 @SuppressWarnings("unchecked")
                 Map<?, WeakReference<Resources>> arrayMap =
                         (Map<?, WeakReference<Resources>>) fMActiveResources.get(resourcesManager);
-                for (WeakReference<Resources> wr : arrayMap.values()) {
-                    Resources resources = wr.get();
-                    // Set the AssetManager of the Resources instance to our brand new one
-                    if (resources != null) {
-                        mAssets.set(resources, newAssetManager);
-                        resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
-                    }
-                }
+                setAssetManager(arrayMap, newAssetManager);
             } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
                     ClassNotFoundException | InvocationTargetException | InstantiationException e) {
                 throw new IllegalStateException(e);
             }
         }
 
+    }
+    static void setAssetManager(Map<?,WeakReference<Resources>> arrayMap, AssetManager newAssetManager) throws IllegalAccessException, NoSuchFieldException {
+        Field mAssets = Resources.class.getDeclaredField("mAssets");
+        mAssets.setAccessible(true);
+
+        for (WeakReference<Resources> wr : arrayMap.values()) {
+            Resources resources = wr.get();
+            // Set the AssetManager of the Resources instance to our brand new one
+            if (resources != null) {
+                getAssetsField(resources).set(resources, newAssetManager);
+                resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
+            }
+        }
+    }
+
+    static Field getAssetsField(Resources resources) {
+        Field mAssets;
+        try {
+            mAssets = Resources.class.getDeclaredField("mAssets");
+            mAssets.setAccessible(true);
+        } catch (NoSuchFieldException e) {
+            // N moved the mAssets inside an mResourcesImpl field
+            try {
+                Field mResourcesImplField;
+                mResourcesImplField = Resources.class.getDeclaredField("mResourcesImpl");
+                mResourcesImplField.setAccessible(true);
+                Object mResourceImpl = mResourcesImplField.get(resources);
+                mAssets = mResourceImpl.getClass().getDeclaredField("mAssets");
+                mAssets.setAccessible(true);
+            } catch (NoSuchFieldException | IllegalAccessException e1) {
+                throw new IllegalStateException(e1);
+            }
+        }
+
+        return mAssets;
     }
 }
