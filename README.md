@@ -128,5 +128,3 @@ do the following
     `READ_EXTERNAL_STORAGE` permission, eliminates emulator SD card requirement
   * Support instrumented testing. This would need implementation similar to
     `MultiDexTestRunner`
-  * give `ContentProvider`s the correct Application class, a la
-      [bazel](https://github.com/bazelbuild/bazel/commit/6c6c89239b74e3cf1c45c551d7eedd8d0e44f816)
