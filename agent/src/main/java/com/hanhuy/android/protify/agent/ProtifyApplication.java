@@ -77,6 +77,67 @@ public class ProtifyApplication extends Application {
         return n;
     }
 
+    private Object stashedContentProviders;
+    private static Field getField(Object instance, String fieldName)
+            throws ClassNotFoundException {
+        for (Class<?> clazz = instance.getClass(); clazz != null; clazz = clazz.getSuperclass()) {
+            try {
+                Field field = clazz.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                return field;
+            } catch (NoSuchFieldException e) {
+                // IllegalStateException will be thrown below
+            }
+        }
+
+        throw new IllegalStateException("Field '" + fieldName + "' not found");
+    }
+
+    private void enableContentProviders() {
+        Log.v(TAG, "enableContentProviders");
+        try {
+            Class<?> activityThread = Class.forName("android.app.ActivityThread");
+            Method mCurrentActivityThread = activityThread.getMethod("currentActivityThread");
+            mCurrentActivityThread.setAccessible(true);
+            Object currentActivityThread = mCurrentActivityThread.invoke(null);
+            Object boundApplication = getField(
+                    currentActivityThread, "mBoundApplication").get(currentActivityThread);
+            getField(boundApplication, "providers").set(boundApplication, stashedContentProviders);
+            if (stashedContentProviders != null) {
+                Method mInstallContentProviders = activityThread.getDeclaredMethod(
+                        "installContentProviders", Context.class, List.class);
+                mInstallContentProviders.setAccessible(true);
+                mInstallContentProviders.invoke(
+                        currentActivityThread, realApplication, stashedContentProviders);
+                stashedContentProviders = null;
+            }
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException
+                | InvocationTargetException e) {
+            if (stashedContentProviders != null) {
+                Log.e(TAG, "ContentProviders stashed, but unable to restore");
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+    private void disableContentProviders() {
+        Log.v(TAG, "disableContentProviders");
+        try {
+            Class<?> activityThread = Class.forName("android.app.ActivityThread");
+            Method mCurrentActivityThread = activityThread.getMethod("currentActivityThread");
+            mCurrentActivityThread.setAccessible(true);
+            Object currentActivityThread = mCurrentActivityThread.invoke(null);
+            Object boundApplication = getField(
+                    currentActivityThread, "mBoundApplication").get(currentActivityThread);
+            Field fProviders = getField(boundApplication, "providers");
+
+            stashedContentProviders = fProviders.get(boundApplication);
+            fProviders.set(boundApplication, null);
+        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException
+                | InvocationTargetException e) {
+            Log.e(TAG, "Unable to inject Application for ContentProviders");
+        }
+    }
+
     @Override
     protected void attachBaseContext(Context base) {
         NotificationManager nm = (NotificationManager) base.getSystemService(
@@ -95,6 +156,7 @@ public class ProtifyApplication extends Application {
             attachBaseContext.setAccessible(true);
             attachBaseContext.invoke(realApplication, base);
 
+            disableContentProviders();
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
@@ -109,6 +171,7 @@ public class ProtifyApplication extends Application {
     public void onCreate() {
         installRealApplication();
         installExternalResources(this);
+        enableContentProviders();
         super.onCreate();
         realApplication.onCreate();
     }
