@@ -34,7 +34,7 @@ val common = project.in(file("common")).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("org.scala-android" % "sbt-android" % "1.6.0")
+    addSbtPlugin("org.scala-android" % "sbt-android" % "1.6.1")
 ).settings(
   name := "sbt-android-protify",
   organization := "org.scala-android",
