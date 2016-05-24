@@ -706,6 +706,7 @@ object Keys {
       false,
       file("/"), // pass a bogus file for main dex list, unused
       (dexMinimizeMain          in Android).value,
+      (dexInProcess             in Android).value,
       (buildTools               in Android).value,
       (dexAdditionalParams      in Android).value)
     Dex.dex(bldr(s.log), dexOpts, Nil, None, true, lib, bin, false, debug, s)
