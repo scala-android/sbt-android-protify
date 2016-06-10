@@ -142,8 +142,14 @@ public class ProtifyApplication extends Application {
     protected void attachBaseContext(Context base) {
         NotificationManager nm = (NotificationManager) base.getSystemService(
                 NOTIFICATION_SERVICE);
+        CharSequence name;
+        try {
+            name = base.getResources().getText(base.getApplicationInfo().labelRes);
+        } catch (Resources.NotFoundException e) {
+            name = base.getPackageName();
+        }
         nm.notify(NOTIFICATION_ID, loadingNotification(
-                base, "Protifying DEX for " + base.getPackageName()));
+                base, "Protifying DEX for " + name));
         DexLoader.install(base);
         nm.cancel(NOTIFICATION_ID);
 
