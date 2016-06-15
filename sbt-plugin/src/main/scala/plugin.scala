@@ -126,7 +126,7 @@ object Keys {
     dependencyClasspath :=
       dependencyClasspath.value.filterNot(
         _.data.getName.startsWith("com.hanhuy.android-protify-agent-")),
-    dependencyClasspath <<= dependencyClasspath dependsOn (protifyLibraryDependencies in Protify)
+    managedSources <<= managedSources dependsOn (protifyLibraryDependencies in Protify)
   )) ++ inConfig(Android)(List(
     dexLegacyMode       := {
       val legacy = dexLegacyMode.value
@@ -745,15 +745,17 @@ object Keys {
     layout.protifyDexJar
   }
 
-  val stableLibraryDependencies = Def.task {
+  val stableLibraryDependencies = Def.taskDyn {
     val libcheckdir = streams.value.cacheDirectory / "protify-libcheck"
     val libcheck = (libcheckdir * "*").get.headOption.map(_.getName)
     val moduleHash = Hash.toHex(Hash((update in Compile).value.allModules.mkString(";")))
-    if (libcheck exists (_ != moduleHash)) {
-      android.Plugin.fail("libraryDependencies have changed, perform a clean build")
+    if (libcheck exists (_ != moduleHash)) Def.task {
+      streams.value.log.warn("libraryDependencies have changed, forcing clean build")
+      val _ = (clean in Compile).value
+    } else Def.task {
+      libcheckdir.mkdirs()
+      IO.touch(libcheckdir / moduleHash)
     }
-    libcheckdir.mkdirs()
-    IO.touch(libcheckdir / moduleHash)
   }
   val protifyPublicResourcesTaskDef = Def.task {
     implicit val out = (outputLayout in Android).value
