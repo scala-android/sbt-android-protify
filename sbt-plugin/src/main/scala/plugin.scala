@@ -758,54 +758,57 @@ object Keys {
     }
   }
   val protifyPublicResourcesTaskDef = Def.task {
-    implicit val out = (outputLayout in Android).value
-    val layout = (projectLayout in Android).value
-    val rtxt = layout.gen / "R.txt"
-    val public = layout.protifyPublicXml
-    public.getParentFile.mkdirs()
-    val idsfile = layout.protifyIdsXml
-    idsfile.getParentFile.mkdirs()
-    if (rtxt.isFile) {
-      FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.hash) { in =>
-        val values = (layout.mergedRes ** "values*" ** "*.xml").get
-        import scala.xml._
-        val allnames = values.flatMap { f =>
-          if (f.getName == "public.xml") Nil
-          else {
-            val xml = XML.loadFile(f)
-            xml.descendant flatMap { n =>
-              n.attribute("name").map { a =>
-                val nm = a.text
-                (nm.replace('.', '_'), nm)
+    val tools = android.Keys.Internal.buildTools.value
+    if (tools.getRevision.getMajor < 24) {
+      implicit val out = (outputLayout in Android).value
+      val layout = (projectLayout in Android).value
+      val rtxt = layout.gen / "R.txt"
+      val public = layout.protifyPublicXml
+      public.getParentFile.mkdirs()
+      val idsfile = layout.protifyIdsXml
+      idsfile.getParentFile.mkdirs()
+      if (rtxt.isFile) {
+        FileFunction.cached(streams.value.cacheDirectory / "public-xml", FilesInfo.hash) { in =>
+          val values = (layout.mergedRes ** "values*" ** "*.xml").get
+          import scala.xml._
+          val allnames = values.flatMap { f =>
+            if (f.getName == "public.xml") Nil
+            else {
+              val xml = XML.loadFile(f)
+              xml.descendant flatMap { n =>
+                n.attribute("name").map { a =>
+                  val nm = a.text
+                  (nm.replace('.', '_'), nm)
+                }
               }
             }
-          }
-        }.toMap
+          }.toMap
 
-        streams.value.log.info("Maintaining resource ID consistency")
-        val (publics, ids) = Using.fileReader(IO.utf8)(rtxt) { in =>
-          IO.foldLines(in, (List("</resources>"), List("</resources>"))) { case ((xs, ys), line) =>
-            val parts = line.split(" ")
-            val cls = parts(1)
-            val nm = allnames.getOrElse(parts(2), parts(2)).trim
-            val value = parts(3)
-            if ("styleable" != cls)
-              ( if ("id" != cls || !nm.startsWith("Id.")) s"""  <public type="$cls" name="$nm" id="$value"/>""" :: xs else xs,
-                if ("id" == cls && !nm.startsWith("Id.")) s"""  <item type="id" name="$nm"/>""" :: ys else ys)
-            else
-              (xs, ys)
+          streams.value.log.info("Maintaining resource ID consistency")
+          val (publics, ids) = Using.fileReader(IO.utf8)(rtxt) { in =>
+            IO.foldLines(in, (List("</resources>"), List("</resources>"))) { case ((xs, ys), line) =>
+              val parts = line.split(" ")
+              val cls = parts(1)
+              val nm = allnames.getOrElse(parts(2), parts(2)).trim
+              val value = parts(3)
+              if ("styleable" != cls)
+                (if ("id" != cls || !nm.startsWith("Id.")) s"""  <public type="$cls" name="$nm" id="$value"/>""" :: xs else xs,
+                  if ("id" == cls && !nm.startsWith("Id.")) s"""  <item type="id" name="$nm"/>""" :: ys else ys)
+              else
+                (xs, ys)
+            }
           }
-        }
-        if (publics.length > 1)
-          IO.writeLines(public, """<?xml version="1.0" encoding="utf-8"?>""" :: "<resources>" :: publics)
-        else
-          IO.delete(public)
-        if (ids.length > 1)
-          IO.writeLines(idsfile, """<?xml version="1.0" encoding="utf-8"?>""" :: "<resources>" :: ids)
-        else
-          IO.delete(idsfile)
-        Set(public, idsfile)
-      }(Set(rtxt))
+          if (publics.length > 1)
+            IO.writeLines(public, """<?xml version="1.0" encoding="utf-8"?>""" :: "<resources>" :: publics)
+          else
+            IO.delete(public)
+          if (ids.length > 1)
+            IO.writeLines(idsfile, """<?xml version="1.0" encoding="utf-8"?>""" :: "<resources>" :: ids)
+          else
+            IO.delete(idsfile)
+          Set(public, idsfile)
+        }(Set(rtxt))
+      }
     }
     ()
   }
