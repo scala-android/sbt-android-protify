@@ -70,6 +70,7 @@ object Keys {
 
   private[android] object Internal {
     val ProtifyAgentModule = "com.hanhuy.android" % "protify-agent" % BuildInfo.version
+    val protifyLibraryDependencies = TaskKey[Unit]("internal-protify-check-dependencies", "internal key: make sure libraryDependencies are stable")
     val protifyDexAgent = TaskKey[File]("internal-protify-dex-agent", "internal key: dex protify-agent.jar")
     val protifyDexJar = TaskKey[File]("internal-protify-dex-jar", "internal key: create a jar containing all dexes")
     val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
@@ -95,6 +96,7 @@ object Keys {
     run <<= protifyRunTaskDef(false),
     protifyDexAgent <<= protifyDexAgentTaskDef,
     protifyDexJar <<= protifyDexJarTaskDef,
+    protifyLibraryDependencies <<= stableLibraryDependencies,
     protifyPublicResources <<= protifyPublicResourcesTaskDef,
     protifyLayouts <<= protifyLayoutsTaskDef storeAs protifyLayouts triggeredBy (compile in Compile),
     protifyThemes <<= discoverThemes storeAs protifyThemes triggeredBy (compile in Compile),
@@ -120,11 +122,12 @@ object Keys {
         }
         sourcesFor(layout)
       }
-  ) ++ inConfig(Compile)(
+  ) ++ inConfig(Compile)(Seq(
     dependencyClasspath :=
       dependencyClasspath.value.filterNot(
-        _.data.getName.startsWith("com.hanhuy.android-protify-agent-"))
-  ) ++ inConfig(Android)(List(
+        _.data.getName.startsWith("com.hanhuy.android-protify-agent-")),
+    dependencyClasspath <<= dependencyClasspath dependsOn (protifyLibraryDependencies in Protify)
+  )) ++ inConfig(Android)(List(
     dexLegacyMode       := {
       val legacy = dexLegacyMode.value
       val debug = apkbuildDebug.value()
@@ -742,7 +745,7 @@ object Keys {
     layout.protifyDexJar
   }
 
-  val protifyPublicResourcesTaskDef = Def.task {
+  val stableLibraryDependencies = Def.task {
     val libcheckdir = streams.value.cacheDirectory / "protify-libcheck"
     val libcheck = (libcheckdir * "*").get.headOption.map(_.getName)
     val moduleHash = Hash.toHex(Hash((update in Compile).value.allModules.mkString(";")))
@@ -751,7 +754,8 @@ object Keys {
     }
     libcheckdir.mkdirs()
     IO.touch(libcheckdir / moduleHash)
-
+  }
+  val protifyPublicResourcesTaskDef = Def.task {
     implicit val out = (outputLayout in Android).value
     val layout = (projectLayout in Android).value
     val rtxt = layout.gen / "R.txt"

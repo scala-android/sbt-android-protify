@@ -252,4 +252,4 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.2.4"
+version in Global := "1.2.5-SNAPSHOT"
