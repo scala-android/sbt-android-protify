@@ -128,3 +128,5 @@ do the following
     `READ_EXTERNAL_STORAGE` permission, eliminates emulator SD card requirement
   * Support instrumented testing. This would need implementation similar to
     `MultiDexTestRunner`
+  * Bundle `protify-agent.jar` with sbt plugin so that it does not have to be
+    published to maven central
