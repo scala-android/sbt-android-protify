@@ -755,7 +755,7 @@ object Keys {
   val stableLibraryDependencies = Def.taskDyn {
     val libcheckdir = streams.value.cacheDirectory / "protify-libcheck"
     val libcheck = (libcheckdir * "*").get.headOption.map(_.getName)
-    val moduleHash = Hash.toHex(Hash((libraryDependencies in Default).value.mkString(";")))
+    val moduleHash = Hash.toHex(Hash((libraryDependencies in Scope(This,This,This,This)).value.mkString(";")))
     if (libcheck exists (_ != moduleHash)) Def.task {
       streams.value.log.warn("libraryDependencies have changed, forcing clean build")
       val _ = (clean in Compile).value
