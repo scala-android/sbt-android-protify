@@ -84,6 +84,7 @@ object Keys {
 
   lazy val protifySettings: List[Setting[_]] = List(
     clean <<= clean dependsOn (clean in Protify),
+    streams in update <<= (streams in update) dependsOn (protifyLibraryDependencies in Protify),
     libraryDependencies += ProtifyAgentModule,
     protify <<= protifyTaskDef,
     protifyLayout <<= protifyLayoutTaskDef(),
@@ -116,17 +117,16 @@ object Keys {
         )
         @tailrec
         def sourcesFor(p: ProjectLayout): Seq[File] = p match {
-          case g: ProjectLayout.Gradle => gradleLike
-          case a: ProjectLayout.Ant => antLike
-          case w: ProjectLayout.Wrapped => sourcesFor(w.wrapped)
+          case g: android.ProjectLayout.Gradle  => gradleLike
+          case a: android.ProjectLayout.Ant     => antLike
+          case w: android.ProjectLayout.Wrapped => sourcesFor(w.wrapped)
         }
         sourcesFor(layout)
       }
   ) ++ inConfig(Compile)(Seq(
     dependencyClasspath :=
       dependencyClasspath.value.filterNot(
-        _.data.getName.startsWith("com.hanhuy.android-protify-agent-")),
-    managedSources <<= managedSources dependsOn (protifyLibraryDependencies in Protify)
+        _.data.getName.startsWith("com.hanhuy.android-protify-agent-"))
   )) ++ inConfig(Android)(List(
     dexLegacyMode       := {
       val legacy = dexLegacyMode.value
@@ -197,11 +197,18 @@ object Keys {
       val dexjar = (protifyDexJar in Protify).value
       val s = streams.value
       val logger = ilogger.value(s.log)
-      android.Packaging.apkbuild(builder.value(s.log),
-        if (a.apkbuildDebug) Seq(Attributed.blank(dexjar)) else Nil, Nil, dcpAg,
-        libraryProject.value, a, ndkAbiFilter.value.toSet,
-        layout.collectJni, layout.resources, layout.collectResource,
-        layout.unsignedApk(a.apkbuildDebug, n), logger, s)
+      android.Packaging.apkbuild(
+        builder.value(s.log),
+        android.Packaging.Jars(if (a.apkbuildDebug) Seq(Attributed.blank(dexjar)) else Nil, Nil, dcpAg),
+        libraryProject.value,
+        a,
+        ndkAbiFilter.value.toSet,
+        layout.collectJni,
+        layout.resources,
+        layout.collectResource,
+        layout.unsignedApk(a.apkbuildDebug, n),
+        logger,
+        s)
     },
     install := {
       val all = allDevices.value
