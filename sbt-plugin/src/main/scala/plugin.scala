@@ -218,11 +218,6 @@ object Keys {
       val s = streams.value
       install.value
       def installed(d: IDevice): Unit = {
-        val api = Try(d.getProperty(IDevice.PROP_BUILD_API_LEVEL).toInt).toOption getOrElse 0
-        if (api >= 23)
-          d.executeShellCommand(
-            s"pm grant $pkg android.permission.READ_EXTERNAL_STORAGE",
-            NullOutputReceiver.getReceiver)
         IO.copyFile(layout.protifyDexHash, layout.protifyInstalledHash(d))
       }
 
@@ -450,8 +445,8 @@ object Keys {
         val cmdS =
           "am"   :: "broadcast"     ::
           "-a"   :: LAYOUT_INTENT   ::
-          "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/${f.getName}"  ::
-          "-e"   :: EXTRA_RTXT      :: s"/sdcard/protify/${f2.getName}" ::
+          "-e"   :: EXTRA_RESOURCES :: s"/data/local/tmp/protify/${f.getName}"  ::
+          "-e"   :: EXTRA_RTXT      :: s"/data/local/tmp/protify/${f2.getName}" ::
           "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                         ::
           "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
           "--ei" :: EXTRA_THEME     :: themeid                          ::
@@ -461,11 +456,11 @@ object Keys {
           Nil
 
         log.debug("Executing: " + cmdS.mkString(" "))
-        dev.executeShellCommand("rm -r /sdcard/protify/*", new Commands.ShellResult)
+        dev.executeShellCommand("rm -r /data/local/tmp/protify/*", new Commands.ShellResult)
         android.Tasks.logRate(log, s"resources deployed to ${dev.getSerialNumber}:", res.length + rTxt.length) {
-          dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/${f.getName}")
+          dev.pushFile(res.getAbsolutePath, s"/data/local/tmp/protify/${f.getName}")
           if (rTxt.isFile)
-            dev.pushFile(rTxt.getAbsolutePath, s"/sdcard/protify/${f2.getName}")
+            dev.pushFile(rTxt.getAbsolutePath, s"/data/local/tmp/protify/${f2.getName}")
         }
         dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
       }
@@ -505,7 +500,7 @@ object Keys {
       val dexlist = topush map { case (p, _, n) =>
         val t = createTempFile("classes", ".dex")
         t.delete()
-        (p, s"/sdcard/protify/$pkg/${t.getName}", n)
+        (p, s"/data/local/tmp/protify/$pkg/${t.getName}", n)
       }
       val restmp = createTempFile("resources", ".ap_")
       restmp.delete()
@@ -514,8 +509,8 @@ object Keys {
       val cmdS =
         "am"   :: "broadcast"     ::
         "-a"   :: intent          ::
-        "-e"   :: EXTRA_RESOURCES :: s"/sdcard/protify/$pkg/${restmp.getName}"  ::
-        "-e"   :: EXTRA_DEX_INFO  :: s"/sdcard/protify/$pkg/${dexinfo.getName}" ::
+        "-e"   :: EXTRA_RESOURCES :: s"/data/local/tmp/protify/$pkg/${restmp.getName}"  ::
+        "-e"   :: EXTRA_DEX_INFO  :: s"/data/local/tmp/protify/$pkg/${dexinfo.getName}" ::
         "-n"   ::
         s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"       ::
         Nil
@@ -525,7 +520,7 @@ object Keys {
 
       log.debug("Executing: " + cmdS.mkString(" "))
 
-      dev.executeShellCommand(s"rm -r /sdcard/protify/$pkg/*", new android.Commands.ShellResult)
+      dev.executeShellCommand(s"rm -r /data/local/tmp/protify/$pkg/*", new android.Commands.ShellResult)
       var pushres = false
       var pushdex = false
       FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
@@ -537,9 +532,9 @@ object Keys {
       if (pushres || pushdex) {
         android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
           if (pushres)
-            dev.pushFile(res.getAbsolutePath, s"/sdcard/protify/$pkg/${restmp.getName}")
+            dev.pushFile(res.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${restmp.getName}")
           if (pushdex) {
-            dev.pushFile(dexinfo.getAbsolutePath, s"/sdcard/protify/$pkg/${dexinfo.getName}")
+            dev.pushFile(dexinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${dexinfo.getName}")
             dexinfo.delete()
             dexlist.foreach { case (d, p, n) =>
               dev.pushFile(d.getAbsolutePath, p)
@@ -673,7 +668,7 @@ object Keys {
         Nil
 
       log.debug("Executing: " + cmdS.mkString(" "))
-      dev.executeShellCommand(s"rm -r /sdcard/protify/$pkg", new Commands.ShellResult)
+      dev.executeShellCommand(s"rm -r /data/local/tmp/protify/$pkg", new Commands.ShellResult)
       FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
         Set.empty
       }(Set.empty)
