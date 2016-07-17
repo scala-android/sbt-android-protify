@@ -5,7 +5,7 @@ import java.net.URLEncoder
 
 import android.Keys.Internal._
 import android.{BuildOutput, Aggregate, Dex}
-import com.android.ddmlib.{NullOutputReceiver, IDevice}
+import com.android.ddmlib.IDevice
 import com.hanhuy.sbt.bintray.UpdateChecker
 import sbt.Def.Initialize
 import sbt._
@@ -69,7 +69,7 @@ object Keys {
   val Protify = config("protify") extend Compile
 
   private[android] object Internal {
-    val ProtifyAgentModule = "com.hanhuy.android" % "protify-agent" % BuildInfo.version
+    val protifyExtractAgent = TaskKey[Unit]("internal-protify-extract-agent", "internal key: extract embedded protify agent aar")
     val protifyLibraryDependencies = TaskKey[Unit]("internal-protify-check-dependencies", "internal key: make sure libraryDependencies are stable")
     val protifyDexAgent = TaskKey[File]("internal-protify-dex-agent", "internal key: dex protify-agent.jar")
     val protifyDexJar = TaskKey[File]("internal-protify-dex-jar", "internal key: create a jar containing all dexes")
@@ -84,8 +84,7 @@ object Keys {
 
   lazy val protifySettings: List[Setting[_]] = List(
     clean <<= clean dependsOn (clean in Protify),
-    streams in update <<= (streams in update) dependsOn (protifyLibraryDependencies in Protify),
-    libraryDependencies += ProtifyAgentModule,
+    streams in update <<= (streams in update) dependsOn (protifyLibraryDependencies in Protify, protifyExtractAgent in Protify),
     protify <<= protifyTaskDef,
     protifyLayout <<= protifyLayoutTaskDef(),
     protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Compile)
@@ -95,6 +94,7 @@ object Keys {
     install in Protify <<= protifyInstallTaskDef,
     debug in Protify <<= protifyRunTaskDef(true),
     run <<= protifyRunTaskDef(false),
+    protifyExtractAgent <<= protifyExtractAgentTaskDef,
     protifyDexAgent <<= protifyDexAgentTaskDef,
     protifyDexJar <<= protifyDexJarTaskDef,
     protifyLibraryDependencies <<= stableLibraryDependencies,
@@ -126,8 +126,13 @@ object Keys {
   ) ++ inConfig(Compile)(Seq(
     dependencyClasspath :=
       dependencyClasspath.value.filterNot(
-        _.data.getName.startsWith("com.hanhuy.android-protify-agent-"))
+        _.data.getName.startsWith("localAAR-protify-agent"))
   )) ++ inConfig(Android)(List(
+    localAars           += {
+      val layout = (projectLayout in Android).value
+      implicit val out = (outputLayout in Android).value
+      layout.protifyAgentAar
+    },
     dexLegacyMode       := {
       val legacy = dexLegacyMode.value
       val debug = apkbuildDebug.value()
@@ -337,6 +342,24 @@ object Keys {
     },
     cleanForR <<= cleanForR dependsOn rGenerator
   )))
+
+  val protifyExtractAgentTaskDef = Def.task {
+    val layout = (projectLayout in Android).value
+    implicit val out = (outputLayout in Android).value
+    val buflen = 32768
+    val buf = Array.ofDim[Byte](buflen)
+    val url = android.Resources.resourceUrl("protify-agent.aar")
+    val uc = url.openConnection()
+    val lastMod = uc.getLastModified
+    uc.getInputStream.close()
+    if (layout.protifyAgentAar.lastModified < lastMod) {
+      Using.urlInputStream(android.Resources.resourceUrl("protify-agent.aar")) { in =>
+        Using.fileOutputStream(false)(layout.protifyAgentAar) { out =>
+          Iterator.continually(in.read(buf, 0, buflen)).takeWhile(_ != -1) foreach (out.write(buf, 0, _))
+        }
+      }
+    }
+  }
 
   private val discoverThemes = Def.task {
     val androidJar = (platformJars in Android).value._1
@@ -696,7 +719,7 @@ object Keys {
     implicit val out = (outputLayout in Android).value
     val layout  = (projectLayout  in Android).value
     val u = (unmanagedJars in Compile).value
-    val agentJar = u.find(_.data.getName startsWith "com.hanhuy.android-protify-agent").get.data
+    val agentJar = u.find(_.data.getName startsWith "localAAR-protify-agent").get.data
     val bldr    = (builder        in Android).value
     val lib     = (libraryProject in Android).value
     val bin     = layout.protifyDexAgent
@@ -819,6 +842,7 @@ object Keys {
     def protify = layout.intermediates / "protify"
     def protifyDex = protify / "dex"
     def protifyDexAgent = protify / "agent"
+    def protifyAgentAar = protify / "protify-agent.aar"
     def protifyDexJar = protify / "protify-dex.jar"
     def protifyDexHash = protify / "protify-dex-hash.txt"
     def protifyIdsXml = layout.generatedRes / "values" / "protify-ids.xml"

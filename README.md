@@ -14,7 +14,7 @@ all future updates can be accessed by using
 * Multiple language support: Java (including retrolambda), Scala, Kotlin
 * No code changes to app required!
 * Support for appcompat-v7, design and support-v4 libraries
-* Most existing android projects
+* Works with most existing android projects
 * Android devices api level 4+
 * Dex sharding for near-instant deployment
 
@@ -105,8 +105,9 @@ do the following
   * Manifest changes will require `android:install` again (i.e.
     adding/removing: activities, services, permissions, receivers, etc).
     Incremental deployment cannot modify manifest.
-  * Deleting a constant value from `R` classes (removing resources) will
-    require running `protify:clean` or else the build will break
+  * No longer true with build-tools 24.0.0 and newer: Deleting a
+    constant value from `R` classes (removing resources) will require
+    running `protify:clean` or else the build will break
   * Object instance state, including singleton and static, will not be restored
     upon deploying new dex code (or resources when on device api level <14).
     All Android `Bundle`d state will be restored in all situations
@@ -114,17 +115,8 @@ do the following
     because of the sharded dex and re-located resource files.
   * NDK is not supported at the moment (initial install works, no `protify`
     updates when jni code changes)
-  * When target device api level >= 23,
-    `android.permission.READ_EXTERNAL_STORAGE` will automatically be granted.
-    This means `checkSelfPermission("android.permission.READ_EXTERNAL_STORAGE")`
-    will always return true while building with protify loaded. You will not be
-    able to properly test requesting `READ_EXTERNAL_STORAGE` at runtime when
-    using protify. Reading external storage is required to load incremental
-    DEX and resource files.
 
 #### TODO (volunteers wanted)
   * Support NDK
   * Support instrumented testing. This would need implementation similar to
     `MultiDexTestRunner`
-  * Bundle `protify-agent.jar` with sbt plugin so that it does not have to be
-    published to maven central

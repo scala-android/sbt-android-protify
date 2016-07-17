@@ -32,9 +32,28 @@ val common = project.in(file("common")).settings(
   }
 )
 
+lazy val agent = project.in(file("agent")).settings(androidBuildAar).settings(
+  platformTarget in Android := "android-15",
+  mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value,
+  javacOptions in (Compile,doc) ~= {
+    _.foldRight(List.empty[String]) { (x, a) =>
+      if ("-bootclasspath" == x) {
+        import java.io.File._
+        x :: (System.getProperty("java.home") + separator + "lib" + separator + "rt.jar" + pathSeparator + a.head) :: a.tail
+      }
+      else x :: a
+    }
+  },
+  autoScalaLibrary := false,
+  organization := "com.hanhuy.android",
+  packageForR := "com.hanhuy.android.protify.agent",
+  name := "protify-agent",
+  javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil
+) dependsOn(common % "compile-internal")
+
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("org.scala-android" % "sbt-android" % "1.6.6")
+    addSbtPlugin("org.scala-android" % "sbt-android" % "1.6.7")
 ).settings(
   name := "sbt-android-protify",
   organization := "org.scala-android",
@@ -49,7 +68,8 @@ val plugin = project.in(file("sbt-plugin")).settings(
   bintrayOrganization in bintray := None,
   libraryDependencies += "com.hanhuy.sbt" %% "bintray-update-checker" % "0.1",
   libraryDependencies += "com.google.code.findbugs" % "jsr305" % "3.0.1" % "compile-internal",
-  mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value
+  mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value,
+  mappings in (Compile, packageBin) += (packageAar in agent).value -> "protify-agent.aar"
 ).dependsOn(common % "compile-internal")
 
 val lib = project.in(file("lib")).settings(androidBuildJar).settings(
@@ -82,48 +102,6 @@ val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   licenses := Seq("BSD-style" -> url("http://www.opensource.org/licenses/bsd-license.php")),
   homepage := Some(url("https://github.com/pfn/protify"))
 )
-
-val agent = project.in(file("agent")).settings(androidBuildAar).settings(
-  platformTarget in Android := "android-15",
-  mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value,
-  javacOptions in (Compile,doc) ~= {
-    _.foldRight(List.empty[String]) { (x, a) =>
-      if ("-bootclasspath" == x) {
-        import java.io.File._
-        x :: (System.getProperty("java.home") + separator + "lib" + separator + "rt.jar" + pathSeparator + a.head) :: a.tail
-      }
-      else x :: a
-    }
-  },
-  autoScalaLibrary := false,
-  organization := "com.hanhuy.android",
-  packageForR := "com.hanhuy.android.protify.agent",
-  name := "protify-agent",
-  publishMavenStyle := true,
-  javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil,
-  publishTo := {
-    val nexus = "https://oss.sonatype.org/"
-    if (isSnapshot.value)
-      Some("snapshots" at nexus + "content/repositories/snapshots")
-    else
-      Some("releases"  at nexus + "service/local/staging/deploy/maven2")
-  },
-  pomIncludeRepository := { _ => false },
-  pomExtra :=
-    <scm>
-      <url>git@github.com:pfn/protify.git</url>
-      <connection>scm:git:git@github.com:pfn/protify.git</connection>
-    </scm>
-      <developers>
-        <developer>
-          <id>pfnguyen</id>
-          <name>Perry Nguyen</name>
-          <url>https://github.com/pfn</url>
-        </developer>
-      </developers>,
-  licenses := Seq("BSD-style" -> url("http://www.opensource.org/licenses/bsd-license.php")),
-  homepage := Some(url("https://github.com/pfn/protify"))
-) dependsOn(common % "compile-internal")
 
 val mobile = project.in(file("android")).settings(androidBuild).settings(
   platformTarget in Android := "android-22",
@@ -252,4 +230,4 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.2.7-SNAPSHOT"
+version in Global := "1.3.0-SNAPSHOT"
