@@ -128,6 +128,7 @@ object Keys {
       dependencyClasspath.value.filterNot(
         _.data.getName.startsWith("localAAR-protify-agent"))
   )) ++ inConfig(Android)(List(
+    useProguardInDebug  := false,
     localAars           += {
       val layout = (projectLayout in Android).value
       implicit val out = (outputLayout in Android).value
@@ -138,7 +139,7 @@ object Keys {
       val debug = apkbuildDebug.value()
       !debug && legacy
     },
-    dexShards := true,
+    dexShards           := true,
     dexAggregate        := {
       val opts = dexAggregate.value
       val debug = apkbuildDebug.value()
