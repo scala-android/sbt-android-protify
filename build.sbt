@@ -53,7 +53,7 @@ lazy val agent = project.in(file("agent")).settings(androidBuildAar).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("org.scala-android" % "sbt-android" % "1.6.13")
+    addSbtPlugin("org.scala-android" % "sbt-android" % "1.6.15")
 ).settings(
   name := "sbt-android-protify",
   organization := "org.scala-android",
@@ -66,7 +66,7 @@ val plugin = project.in(file("sbt-plugin")).settings(
     "-Dplugin.version=" + version.value
   ),
   bintrayOrganization in bintray := None,
-  libraryDependencies += "com.hanhuy.sbt" %% "bintray-update-checker" % "0.1",
+  libraryDependencies += "com.hanhuy.sbt" %% "bintray-update-checker" % "0.2",
   libraryDependencies += "com.google.code.findbugs" % "jsr305" % "3.0.1" % "compile-internal",
   mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value,
   mappings in (Compile, packageBin) += (packageAar in agent).value -> "protify-agent.aar"
@@ -230,4 +230,4 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
 
 Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.3.1"
+version in Global := "1.3.2"
