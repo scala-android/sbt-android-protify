@@ -26,63 +26,25 @@ import com.hanhuy.android.protify.BuildInfo
 
 import scala.util.Try
 
-/**
- * @author pfnguyen
- */
-object Plugin extends AutoPlugin {
-  override def trigger = allRequirements
-  override def requires = android.AndroidPlugin
-
-  val autoImport = Keys
-
-
-  override def projectSettings = Seq(updateCheck in Keys.Protify := {
-    val log = streams.value.log
-
-    UpdateChecker("pfn", "sbt-plugins", "sbt-android-protify") {
-      case Left(t) =>
-        log.debug("Failed to load version info: " + t)
-      case Right((versions, current)) =>
-        log.debug("available versions: " + versions)
-        log.debug("current version: " + BuildInfo.version)
-        log.debug("latest version: " + current)
-        if (versions(BuildInfo.version)) {
-          if (BuildInfo.version != current) {
-            log.warn(
-              s"UPDATE: A newer sbt-android-protify is available:" +
-                s" $current, currently running: ${BuildInfo.version}")
-          }
-        }
-    }
-  })
-
-  override def globalSettings = (onLoad := onLoad.value andThen { s =>
-    Project.runTask(updateCheck in Keys.Protify, s).fold(s)(_._1)
-  }) :: Nil
-}
-
 object Keys {
-  import Internal._
-  type ResourceId = (String,Int)
   val protifyLayout = InputKey[Unit]("protify-layout", "prototype an android layout on device")
   val protify = TaskKey[Unit]("protify", "live-coding on-device")
   val Protify = config("protify") extend Compile
 
-  private[android] object Internal {
-    val protifyExtractAgent = TaskKey[Unit]("internal-protify-extract-agent", "internal key: extract embedded protify agent aar")
-    val protifyLibraryDependencies = TaskKey[Unit]("internal-protify-check-dependencies", "internal key: make sure libraryDependencies are stable")
-    val protifyDexAgent = TaskKey[File]("internal-protify-dex-agent", "internal key: dex protify-agent.jar")
-    val protifyDexJar = TaskKey[File]("internal-protify-dex-jar", "internal key: create a jar containing all dexes")
-    val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
-    val protifyLayouts = TaskKey[Seq[ResourceId]]("internal-protify-layouts", "internal key: autodetected layout files")
-    val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("internal-protify-themes", "internal key: platform themes, app themes")
-    val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("internal-protify-layouts-and-themes", "internal key: themes and layouts")
-  }
+  @deprecated("use `enablePlugins(ProtifyPlugin)`", "1.4.0")
+  def protifySettings: Seq[Setting[_]] = ProtifyPlugin.projectSettings
+}
+/**
+ * @author pfnguyen
+ */
+object ProtifyPlugin extends AutoPlugin {
+  override def requires = android.AndroidApp
 
-  private[this] def appInfoDescriptor(target: File) =
-    target / "protify_application_info.txt"
+  val autoImport = Keys
 
-  lazy val protifySettings: List[Setting[_]] = List(
+  import android.protify.Keys._
+  import Internal._
+  override def projectSettings = List(
     clean <<= clean dependsOn (clean in Protify),
     streams in update <<= (streams in update) dependsOn (protifyLibraryDependencies in Protify, protifyExtractAgent in Protify),
     protify <<= protifyTaskDef,
@@ -233,7 +195,7 @@ object Keys {
     },
     processManifest := {
       if (libraryProject.value)
-        android.Plugin.fail("protifySettings cannot be applied to libraryProject")
+        android.fail("protifySettings cannot be applied to libraryProject")
       val processed = processManifest.value
       if (apkbuildDebug.value()) {
         val pkg = packageForR.value
@@ -273,9 +235,9 @@ object Keys {
               val activityE = new Elem(null, "activity", activityTheme, TopScope,
                 minimizeEmpty = true)
 
-//                <activity android:name="com.hanhuy.android.protify.agent.internal.ProtifyActivity"
-//                          android:exported="false"
-//                          android:theme="@style/InternalProtifyDialogTheme"/>
+              //                <activity android:name="com.hanhuy.android.protify.agent.internal.ProtifyActivity"
+              //                          android:exported="false"
+              //                          android:theme="@style/InternalProtifyDialogTheme"/>
 
               import com.hanhuy.android.protify.Intents
               val actionName0 = new PrefixedAttribute(androidPrefix,
@@ -297,13 +259,13 @@ object Keys {
                 "exported", "true", receiverPermission)
               val receiverE = new Elem(null, "receiver", receiverExported, TopScope,
                 minimizeEmpty = true, intentFilter)
-//            <receiver android:name="com.hanhuy.android.protify.agent.internal.ProtifyReceiver"
-//                      android:permission="android.permission.INSTALL_PACKAGES"
-//                      android:exported="true">
-//              <intent-filter>
-//                <action android:name="com.hanhuy.android.protify.action.PROTIFY"/>
-//              </intent-filter>
-//            </receiver>
+              //            <receiver android:name="com.hanhuy.android.protify.agent.internal.ProtifyReceiver"
+              //                      android:permission="android.permission.INSTALL_PACKAGES"
+              //                      android:exported="true">
+              //              <intent-filter>
+              //                <action android:name="com.hanhuy.android.protify.action.PROTIFY"/>
+              //              </intent-filter>
+              //            </receiver>
               Elem(prefix, "application", withNameAttr, scope, true, children :+ activityE :+ receiverE:_*)
             case x => x
           }
@@ -343,6 +305,45 @@ object Keys {
     },
     cleanForR <<= cleanForR dependsOn rGenerator
   )))
+
+  override def globalSettings = (onLoad := onLoad.value andThen { s =>
+    Project.runTask(updateCheck in Keys.Protify, s).fold(s)(_._1)
+  }) ::
+    (updateCheck in Keys.Protify := {
+      val log = streams.value.log
+
+      UpdateChecker("pfn", "sbt-plugins", "sbt-android-protify") {
+        case Left(t) =>
+          log.debug("Failed to load version info: " + t)
+        case Right((versions, current)) =>
+          log.debug("available versions: " + versions)
+          log.debug("current version: " + BuildInfo.version)
+          log.debug("latest version: " + current)
+          if (versions(BuildInfo.version)) {
+            if (BuildInfo.version != current) {
+              log.warn(
+                s"UPDATE: A newer sbt-android-protify is available:" +
+                  s" $current, currently running: ${BuildInfo.version}")
+            }
+          }
+      }
+    }) ::
+    Nil
+
+  type ResourceId = (String,Int)
+  private[android] object Internal {
+    val protifyExtractAgent = TaskKey[Unit]("internal-protify-extract-agent", "internal key: extract embedded protify agent aar")
+    val protifyLibraryDependencies = TaskKey[Unit]("internal-protify-check-dependencies", "internal key: make sure libraryDependencies are stable")
+    val protifyDexAgent = TaskKey[File]("internal-protify-dex-agent", "internal key: dex protify-agent.jar")
+    val protifyDexJar = TaskKey[File]("internal-protify-dex-jar", "internal key: create a jar containing all dexes")
+    val protifyPublicResources = TaskKey[Unit]("internal-protify-public-resources", "internal key: generate public.xml from R.txt")
+    val protifyLayouts = TaskKey[Seq[ResourceId]]("internal-protify-layouts", "internal key: autodetected layout files")
+    val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("internal-protify-themes", "internal key: platform themes, app themes")
+    val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("internal-protify-layouts-and-themes", "internal key: themes and layouts")
+  }
+
+  private[this] def appInfoDescriptor(target: File) =
+    target / "protify_application_info.txt"
 
   val protifyExtractAgentTaskDef = Def.task {
     val layout = (projectLayout in Android).value
@@ -448,7 +449,7 @@ object Keys {
       val layouts = loadFromContext(protifyLayouts in Protify, sbt.Keys.resolvedScoped.value, state.value).getOrElse(Nil)
       val themes = loadFromContext(protifyThemes in Protify, sbt.Keys.resolvedScoped.value, state.value).getOrElse((Nil,Nil))
       if (layouts.isEmpty || themes._1.isEmpty) {
-        android.Plugin.fail("No layouts or themes cached, try again?")
+        android.fail("No layouts or themes cached, try again?")
       }
       if (l.isEmpty) {
         log.info("Previewing R.layout." + layouts.head._1)
@@ -468,16 +469,16 @@ object Keys {
         f2.delete()
         val cmdS =
           "am"   :: "broadcast"     ::
-          "-a"   :: LAYOUT_INTENT   ::
-          "-e"   :: EXTRA_RESOURCES :: s"/data/local/tmp/protify/${f.getName}"  ::
-          "-e"   :: EXTRA_RTXT      :: s"/data/local/tmp/protify/${f2.getName}" ::
-          "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                         ::
-          "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
-          "--ei" :: EXTRA_THEME     :: themeid                          ::
-          "--ei" :: EXTRA_LAYOUT    :: resid                            ::
-          "-n"   ::
-          "com.hanhuy.android.protify/.LayoutReceiver"                  ::
-          Nil
+            "-a"   :: LAYOUT_INTENT   ::
+            "-e"   :: EXTRA_RESOURCES :: s"/data/local/tmp/protify/${f.getName}"  ::
+            "-e"   :: EXTRA_RTXT      :: s"/data/local/tmp/protify/${f2.getName}" ::
+            "-e"   :: EXTRA_RTXT_HASH :: rTxtHash                         ::
+            "--ez" :: EXTRA_APPCOMPAT :: isAppcompat                      ::
+            "--ei" :: EXTRA_THEME     :: themeid                          ::
+            "--ei" :: EXTRA_LAYOUT    :: resid                            ::
+            "-n"   ::
+            "com.hanhuy.android.protify/.LayoutReceiver"                  ::
+            Nil
 
         log.debug("Executing: " + cmdS.mkString(" "))
         dev.executeShellCommand("rm -r /data/local/tmp/protify/*", new Commands.ShellResult)
@@ -516,7 +517,7 @@ object Keys {
 
       val installHash = layout.protifyInstalledHash(dev)
       if (!installHash.isFile)
-        android.Plugin.fail(s"Application has not been installed to ${dev.getSerialNumber}, android:install first")
+        android.fail(s"Application has not been installed to ${dev.getSerialNumber}, android:install first")
       val installed = IO.readLines(installHash)
       val hashes = installed.map(_.split(":")(1)).toSet
       val topush = dexfileHashes.filterNot(d => hashes(d._2))
@@ -532,12 +533,12 @@ object Keys {
       dexinfo.deleteOnExit()
       val cmdS =
         "am"   :: "broadcast"     ::
-        "-a"   :: intent          ::
-        "-e"   :: EXTRA_RESOURCES :: s"/data/local/tmp/protify/$pkg/${restmp.getName}"  ::
-        "-e"   :: EXTRA_DEX_INFO  :: s"/data/local/tmp/protify/$pkg/${dexinfo.getName}" ::
-        "-n"   ::
-        s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"       ::
-        Nil
+          "-a"   :: intent          ::
+          "-e"   :: EXTRA_RESOURCES :: s"/data/local/tmp/protify/$pkg/${restmp.getName}"  ::
+          "-e"   :: EXTRA_DEX_INFO  :: s"/data/local/tmp/protify/$pkg/${dexinfo.getName}" ::
+          "-n"   ::
+          s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"       ::
+          Nil
 
 
       IO.write(dexinfo, dexlist.map(d => d._2 + ":" + d._3).mkString("\n"))
@@ -631,7 +632,7 @@ object Keys {
     val isLib = (libraryProject in Android).value
     implicit val output = (outputLayout in Android).value
     if (isLib)
-      android.Plugin.fail("This project is not runnable, it has set 'libraryProject in Android := true")
+      android.fail("This project is not runnable, it has set 'libraryProject in Android := true")
 
     val manifestXml = l.processedManifest
     import scala.xml.XML
@@ -664,7 +665,7 @@ object Keys {
         else
           Commands.targetDevice(k, s.log) foreach execute
       case None =>
-        android.Plugin.fail(
+        android.fail(
           "No activity found with action 'android.intent.action.MAIN'")
     }
 
@@ -686,9 +687,9 @@ object Keys {
       import com.hanhuy.android.protify.Intents._
       def execute(dev: IDevice): Unit = {
         val cmdS =
-          "am" :: "broadcast" ::
-            "-a" :: CLEAN_INTENT ::
-            "-n" ::
+          "am"   :: "broadcast"     ::
+            "-a"   :: CLEAN_INTENT    ::
+            "-n"   ::
             s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver" ::
             Nil
 
@@ -714,9 +715,9 @@ object Keys {
   }
   def discoverActivityProxies(analysis: inc.Analysis): Seq[String] =
     Discovery(Set("com.hanhuy.android.protify.ActivityProxy"), Set.empty)(Tests.allDefs(analysis)).collect({
-        case (definition, discovered) if !definition.modifiers.isAbstract &&
-          discovered.baseClasses("com.hanhuy.android.protify.ActivityProxy") =>
-          definition.name }).sorted
+      case (definition, discovered) if !definition.modifiers.isAbstract &&
+        discovered.baseClasses("com.hanhuy.android.protify.ActivityProxy") =>
+        definition.name }).sorted
 
   private val protifyDexAgentTaskDef = Def.task {
     implicit val out = (outputLayout in Android).value
@@ -738,7 +739,7 @@ object Keys {
       file("/"), // pass a bogus file for main dex list, unused
       (dexMinimizeMain          in Android).value,
       (dexInProcess             in Android).value,
-      (buildTools               in Android).value,
+      (buildToolInfo            in Android).value,
       (dexAdditionalParams      in Android).value)
     Dex.dex(bldr(s.log), dexOpts, Nil, None, true, lib, bin, false, debug, s)
   }
@@ -752,10 +753,10 @@ object Keys {
     val enumRe = """classes(\d+).dex""".r
     val pd = (predex in Android).value.flatMap(_._2 * "*.dex" get) map { f =>
       val name = f.getParentFile.getName.dropRight(4) // ".jar"
-      val ext = f.getName match {
-        case enumRe(num) ⇒ s"_$num"
-        case _ ⇒ ""
-      }
+    val ext = f.getName match {
+      case enumRe(num) ⇒ s"_$num"
+      case _ ⇒ ""
+    }
       (f, s"protify-dex/$name$ext.dex")
     }
 
@@ -786,7 +787,7 @@ object Keys {
     }
   }
   val protifyPublicResourcesTaskDef = Def.task {
-    val tools = android.Keys.Internal.buildTools.value
+    val tools = android.Keys.Internal.buildToolInfo.value
     if (tools.getRevision.getMajor < 24) {
       implicit val out = (outputLayout in Android).value
       val layout = (projectLayout in Android).value
