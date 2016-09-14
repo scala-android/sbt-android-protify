@@ -15,7 +15,7 @@ all future updates can be accessed by using
 * No code changes to app required!
 * Support for appcompat-v7, design and support-v4 libraries
 * Works with most existing android projects
-* Android devices api level 4+
+* Android devices api level 5+
 * Dex sharding for near-instant deployment
 
 ## Demo:

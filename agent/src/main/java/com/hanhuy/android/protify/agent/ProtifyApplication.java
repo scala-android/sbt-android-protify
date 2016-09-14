@@ -1,5 +1,6 @@
 package com.hanhuy.android.protify.agent;
 
+import android.annotation.TargetApi;
 import android.app.Application;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -13,6 +14,7 @@ import android.content.res.AssetManager;
 import android.content.res.Resources;
 import android.os.Build;
 import android.util.Log;
+import android.util.Pair;
 import com.hanhuy.android.protify.agent.internal.*;
 
 import java.io.ByteArrayOutputStream;
@@ -24,6 +26,7 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.Collection;
 import java.util.List;
 import java.util.Map;
 
@@ -111,8 +114,7 @@ public class ProtifyApplication extends Application {
                         currentActivityThread, realApplication, stashedContentProviders);
                 stashedContentProviders = null;
             }
-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException
-                | InvocationTargetException e) {
+        } catch (Exception e) {
             if (stashedContentProviders != null) {
                 Log.e(TAG, "ContentProviders stashed, but unable to restore");
                 throw new IllegalStateException(e);
@@ -132,8 +134,7 @@ public class ProtifyApplication extends Application {
 
             stashedContentProviders = fProviders.get(boundApplication);
             fProviders.set(boundApplication, null);
-        } catch (ClassNotFoundException | NoSuchMethodException | IllegalAccessException
-                | InvocationTargetException e) {
+        } catch (Exception e) {
             Log.e(TAG, "Unable to inject Application for ContentProviders");
         }
     }
@@ -274,8 +275,7 @@ public class ProtifyApplication extends Application {
                     }
                 }
             }
-        } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
-                ClassNotFoundException | InvocationTargetException e) {
+        } catch (Exception e) {
             throw new IllegalStateException(e);
         }
     }
@@ -294,7 +294,9 @@ public class ProtifyApplication extends Application {
         }
         if (f.isFile() && f.length() > 0) {
             Log.v(TAG, "Installing external resource file: " + f);
-            if (Build.VERSION.SDK_INT >= 18)
+            if (Build.VERSION.SDK_INT >= 24)
+                V24Resources.install(f.getAbsolutePath());
+            else if (Build.VERSION.SDK_INT >= 18)
                 V19Resources.install(f.getAbsolutePath());
             else
                 V4Resources.install(f.getAbsolutePath());
@@ -347,23 +349,37 @@ public class ProtifyApplication extends Application {
         }
     }
 
-    static class V19Resources {
+    private static class V24Resources {
+        @TargetApi(24)
         static void install(String externalResourceFile) {
             try {
-                // Create a new AssetManager instance and point it to the resources installed under
-                // /sdcard
-                AssetManager newAssetManager = AssetManager.class.getConstructor().newInstance();
-                Method mAddAssetPath = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
-                mAddAssetPath.setAccessible(true);
-                if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile)) == 0) {
-                    throw new IllegalStateException("Could not create new AssetManager");
-                }
+                AssetManager newAssetManager = createAssetManager(externalResourceFile);
 
-                // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm
-                // in L, so we do it unconditionally.
-                Method mEnsureStringBlocks = AssetManager.class.getDeclaredMethod("ensureStringBlocks");
-                mEnsureStringBlocks.setAccessible(true);
-                mEnsureStringBlocks.invoke(newAssetManager);
+                // Find the singleton instance of ResourcesManager
+                Class<?> clazz = Class.forName("android.app.ResourcesManager");
+                Method mGetInstance = clazz.getDeclaredMethod("getInstance");
+                mGetInstance.setAccessible(true);
+                Object resourcesManager = mGetInstance.invoke(null);
+
+                // Iterate over all known Resources objects
+                Field mResourceReferences = clazz.getDeclaredField("mResourceReferences");
+                mResourceReferences.setAccessible(true);
+                @SuppressWarnings("unchecked")
+                Collection<WeakReference<Resources>> references =
+                        (Collection<WeakReference<Resources>>) mResourceReferences.get(resourcesManager);
+
+                setAssetManager(references, newAssetManager);
+            } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
+                    ClassNotFoundException | InvocationTargetException | InstantiationException e) {
+                throw new IllegalStateException(e);
+            }
+        }
+    }
+    private static class V19Resources {
+        @TargetApi(19)
+        static void install(String externalResourceFile) {
+            try {
+                AssetManager newAssetManager = createAssetManager(externalResourceFile);
 
                 // Find the singleton instance of ResourcesManager
                 Class<?> clazz = Class.forName("android.app.ResourcesManager");
@@ -384,23 +400,10 @@ public class ProtifyApplication extends Application {
             }
         }
     }
-    static class V4Resources {
+    private static class V4Resources {
         static void install(String externalResourceFile) {
             try {
-                // Create a new AssetManager instance and point it to the resources installed under
-                // /sdcard
-                AssetManager newAssetManager = AssetManager.class.getConstructor().newInstance();
-                Method mAddAssetPath = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
-                mAddAssetPath.setAccessible(true);
-                if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile)) == 0) {
-                    throw new IllegalStateException("Could not create new AssetManager");
-                }
-
-                // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm
-                // in L, so we do it unconditionally.
-                Method mEnsureStringBlocks = AssetManager.class.getDeclaredMethod("ensureStringBlocks");
-                mEnsureStringBlocks.setAccessible(true);
-                mEnsureStringBlocks.invoke(newAssetManager);
+                AssetManager newAssetManager = createAssetManager(externalResourceFile);
 
                 // Find the singleton instance of ResourcesManager
                 Class<?> clazz = Class.forName("android.app.ActivityThread");
@@ -415,18 +418,41 @@ public class ProtifyApplication extends Application {
                 Map<?, WeakReference<Resources>> arrayMap =
                         (Map<?, WeakReference<Resources>>) fMActiveResources.get(resourcesManager);
                 setAssetManager(arrayMap, newAssetManager);
-            } catch (IllegalAccessException | NoSuchFieldException | NoSuchMethodException |
-                    ClassNotFoundException | InvocationTargetException | InstantiationException e) {
+            } catch (Exception e) {
                 throw new IllegalStateException(e);
             }
         }
 
     }
-    static void setAssetManager(Map<?,WeakReference<Resources>> arrayMap, AssetManager newAssetManager) throws IllegalAccessException, NoSuchFieldException {
+
+    private static AssetManager createAssetManager(String externalResourceFile)
+            throws InvocationTargetException, IllegalAccessException, NoSuchMethodException, InstantiationException {
+        // Create a new AssetManager instance and point it to the resources installed under
+        // /sdcard
+        AssetManager newAssetManager = AssetManager.class.getConstructor().newInstance();
+        Method mAddAssetPath = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
+        mAddAssetPath.setAccessible(true);
+        if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile)) == 0) {
+            throw new IllegalStateException("Could not create new AssetManager");
+        }
+
+        // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm
+        // in L, so we do it unconditionally.
+        Method mEnsureStringBlocks = AssetManager.class.getDeclaredMethod("ensureStringBlocks");
+        mEnsureStringBlocks.setAccessible(true);
+        mEnsureStringBlocks.invoke(newAssetManager);
+        return newAssetManager;
+    }
+
+    private static void setAssetManager(Map<?,WeakReference<Resources>> arrayMap, AssetManager newAssetManager) throws IllegalAccessException, NoSuchFieldException {
+        setAssetManager(arrayMap.values(), newAssetManager);
+    }
+
+    private static void setAssetManager(Collection<WeakReference<Resources>> ress, AssetManager newAssetManager) throws IllegalAccessException, NoSuchFieldException {
         Field mAssets = Resources.class.getDeclaredField("mAssets");
         mAssets.setAccessible(true);
 
-        for (WeakReference<Resources> wr : arrayMap.values()) {
+        for (WeakReference<Resources> wr : ress) {
             Resources resources = wr.get();
             // Set the AssetManager of the Resources instance to our brand new one
             if (resources != null) {
@@ -436,25 +462,23 @@ public class ProtifyApplication extends Application {
         }
     }
 
-    static Field getAssetsField(Resources resources) {
+    private static Field getAssetsField(Resources resources) {
         Field mAssets;
         try {
-            mAssets = Resources.class.getDeclaredField("mAssets");
-            mAssets.setAccessible(true);
-        } catch (NoSuchFieldException e) {
-            // N moved the mAssets inside an mResourcesImpl field
-            try {
+            if (Build.VERSION.SDK_INT >= 24) {
                 Field mResourcesImplField;
                 mResourcesImplField = Resources.class.getDeclaredField("mResourcesImpl");
                 mResourcesImplField.setAccessible(true);
                 Object mResourceImpl = mResourcesImplField.get(resources);
                 mAssets = mResourceImpl.getClass().getDeclaredField("mAssets");
                 mAssets.setAccessible(true);
-            } catch (NoSuchFieldException | IllegalAccessException e1) {
-                throw new IllegalStateException(e1);
+            } else {
+                mAssets = Resources.class.getDeclaredField("mAssets");
+                mAssets.setAccessible(true);
             }
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
         }
-
         return mAssets;
     }
 }
