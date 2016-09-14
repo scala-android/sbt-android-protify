@@ -449,9 +449,6 @@ public class ProtifyApplication extends Application {
     }
 
     private static void setAssetManager(Collection<WeakReference<Resources>> ress, AssetManager newAssetManager) throws IllegalAccessException, NoSuchFieldException {
-        Field mAssets = Resources.class.getDeclaredField("mAssets");
-        mAssets.setAccessible(true);
-
         for (WeakReference<Resources> wr : ress) {
             Resources resources = wr.get();
             // Set the AssetManager of the Resources instance to our brand new one
