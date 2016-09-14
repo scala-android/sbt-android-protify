@@ -453,13 +453,13 @@ public class ProtifyApplication extends Application {
             Resources resources = wr.get();
             // Set the AssetManager of the Resources instance to our brand new one
             if (resources != null) {
-                getAssetsField(resources).set(resources, newAssetManager);
+                setAssetsField(resources, newAssetManager);
                 resources.updateConfiguration(resources.getConfiguration(), resources.getDisplayMetrics());
             }
         }
     }
 
-    private static Field getAssetsField(Resources resources) {
+    private static void setAssetsField(Resources resources, AssetManager newAssetManager) {
         Field mAssets;
         try {
             if (Build.VERSION.SDK_INT >= 24) {
@@ -469,13 +469,14 @@ public class ProtifyApplication extends Application {
                 Object mResourceImpl = mResourcesImplField.get(resources);
                 mAssets = mResourceImpl.getClass().getDeclaredField("mAssets");
                 mAssets.setAccessible(true);
+                mAssets.set(mResourceImpl, newAssetManager);
             } else {
                 mAssets = Resources.class.getDeclaredField("mAssets");
                 mAssets.setAccessible(true);
+                mAssets.set(resources, newAssetManager);
             }
         } catch (Exception e) {
             throw new IllegalStateException(e);
         }
-        return mAssets;
     }
 }
