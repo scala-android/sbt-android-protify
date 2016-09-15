@@ -1,5 +1,6 @@
 # protify: instantaneous, on-device development for Android
 
+[![Latest version](https://img.shields.io/bintray/v/pfn/sbt-plugins/sbt-android-protify.svg?maxAge=2592000)](https://bintray.com/pfn/sbt-plugins/sbt-android-protify)
 [![Join the chat at https://gitter.im/scala-android/sbt-android](https://badges.gitter.im/Join%20Chat.svg)](https://gitter.im/scala-android/sbt-android?utm_source=badge&utm_medium=badge&utm_campaign=pr-badge&utm_content=badge)
 
 Current version is 1.3.6
