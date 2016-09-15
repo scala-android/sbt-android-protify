@@ -123,7 +123,7 @@ object Keys {
         }
         sourcesFor(layout)
       }
-  ) ++ inConfig(Compile)(Seq(
+  ) ++ inConfig(Runtime)(Seq(
     dependencyClasspath :=
       dependencyClasspath.value.filterNot(
         _.data.getName.startsWith("localAAR-protify-agent"))
