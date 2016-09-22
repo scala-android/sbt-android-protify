@@ -671,42 +671,44 @@ object Keys {
     ()
   } dependsOn (install in Protify)
   val protifyCleanTaskDef = Def.task {
-    val st = streams.value
-    val cacheDirectory = (streams in protify).value.cacheDirectory / "protify"
-    val log = st.log
-    val all = (allDevices in Android).value
-    val sdk = (sdkPath in Android).value
-    val pkg = (applicationId in Android).value
-    implicit val out = (outputLayout in Android).value
-    val layout = (projectLayout in Android).value
-    layout.protifyPublicXml.delete()
-    layout.rTxt.delete()
-    import android.Commands
-    import com.hanhuy.android.protify.Intents._
-    def execute(dev: IDevice): Unit = {
-      val cmdS =
-        "am"   :: "broadcast"     ::
-        "-a"   :: CLEAN_INTENT    ::
-        "-n"   ::
-        s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver" ::
-        Nil
+    if (apkbuildDebug.value()) {
+      val st = streams.value
+      val cacheDirectory = (streams in protify).value.cacheDirectory / "protify"
+      val log = st.log
+      val all = (allDevices in Android).value
+      val sdk = (sdkPath in Android).value
+      val pkg = (applicationId in Android).value
+      implicit val out = (outputLayout in Android).value
+      val layout = (projectLayout in Android).value
+      layout.protifyPublicXml.delete()
+      layout.rTxt.delete()
+      import android.Commands
+      import com.hanhuy.android.protify.Intents._
+      def execute(dev: IDevice): Unit = {
+        val cmdS =
+          "am" :: "broadcast" ::
+            "-a" :: CLEAN_INTENT ::
+            "-n" ::
+            s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver" ::
+            Nil
 
-      log.debug("Executing: " + cmdS.mkString(" "))
-      dev.executeShellCommand(s"rm -r /data/local/tmp/protify/$pkg", new Commands.ShellResult)
-      FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
-        Set.empty
-      }(Set.empty)
-      FileFunction.cached(cacheDirectory / dev.safeSerial / "dex", FilesInfo.lastModified) { in =>
-        Set.empty
-      }(Set.empty)
-      dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
-      IO.copyFile(layout.protifyDexHash, layout.protifyInstalledHash(dev))
-    }
-    Try {
-      if (all)
-        Commands.deviceList(sdk, log).par foreach execute
-      else
-        Commands.targetDevice(sdk, log) foreach execute
+        log.debug("Executing: " + cmdS.mkString(" "))
+        dev.executeShellCommand(s"rm -r /data/local/tmp/protify/$pkg", new Commands.ShellResult)
+        FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
+          Set.empty
+        }(Set.empty)
+        FileFunction.cached(cacheDirectory / dev.safeSerial / "dex", FilesInfo.lastModified) { in =>
+          Set.empty
+        }(Set.empty)
+        dev.executeShellCommand(cmdS.mkString(" "), new Commands.ShellResult)
+        IO.copyFile(layout.protifyDexHash, layout.protifyInstalledHash(dev))
+      }
+      Try {
+        if (all)
+          Commands.deviceList(sdk, log).par foreach execute
+        else
+          Commands.targetDevice(sdk, log) foreach execute
+      }
     }
     ()
   }
