@@ -143,12 +143,12 @@ object ProtifyPlugin extends AutoPlugin {
       val debug = apkbuildDebug.value()
       if (debug) Def.task {
         Aggregate.Apkbuild(packagingOptions.value,
-          debug, apkDebugSigningConfig.value, (protifyDexAgent in Protify).value, Nil,
+          debug, apkDebugSigningConfig.value, processManifest.value, (protifyDexAgent in Protify).value, Nil,
           collectJni.value, resourceShrinker.value, minSdkVersion.value.toInt)
 
       } else Def.task {
         Aggregate.Apkbuild(packagingOptions.value,
-          debug, apkDebugSigningConfig.value, (dex in Android).value, predex.value,
+          debug, apkDebugSigningConfig.value, processManifest.value, (dex in Android).value, predex.value,
           collectJni.value, resourceShrinker.value, minSdkVersion.value.toInt)
 
       }
@@ -174,6 +174,7 @@ object ProtifyPlugin extends AutoPlugin {
         layout.collectJni,
         layout.resources,
         layout.collectResource,
+        layout.mergedAssets,
         layout.unsignedApk(a.apkbuildDebug, n),
         logger,
         s)

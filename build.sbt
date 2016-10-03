@@ -55,6 +55,7 @@ val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
     addSbtPlugin("org.scala-android" % "sbt-android" % "1.7.0-SNAPSHOT")
 ).settings(
+  resolvers += Resolver.jcenterRepo, // TODO remove once google fixes
   name := "sbt-android-protify",
   organization := "org.scala-android",
   scalacOptions ++= Seq("-deprecation","-Xlint","-feature", "-unchecked"),
