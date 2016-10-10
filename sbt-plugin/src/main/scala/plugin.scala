@@ -31,13 +31,13 @@ object Keys {
   val protify = TaskKey[Unit]("protify", "live-coding on-device")
   val Protify = config("protify") extend Compile
 
-  @deprecated("use `enablePlugins(ProtifyPlugin)`", "1.4.0")
-  def protifySettings: Seq[Setting[_]] = ProtifyPlugin.projectSettings
+  @deprecated("use `enablePlugins(AndroidProtify)`", "1.4.0")
+  def protifySettings: Seq[Setting[_]] = AndroidProtify.projectSettings
 }
 /**
  * @author pfnguyen
  */
-object ProtifyPlugin extends AutoPlugin {
+object AndroidProtify extends AutoPlugin {
   override def requires = android.AndroidApp
 
   val autoImport = Keys
