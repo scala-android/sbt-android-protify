@@ -732,17 +732,21 @@ object AndroidProtify extends AutoPlugin {
     val s       = streams.value
     bin.mkdirs()
 
+    val f = File.createTempFile("fake-maindex", ".lst")
+    f.deleteOnExit()
     val dexOpts = Aggregate.Dex(
       (false,agentJar :: Nil),
       (dexMaxHeap               in Android).value,
       (dexMaxProcessCount       in Android).value,
-      false,
-      file("/"), // pass a bogus file for main dex list, unused
+      true, // enable multidex so that dexInProcess works correctly
+      f, // pass a bogus file for main dex list, unused
       (dexMinimizeMain          in Android).value,
       (dexInProcess             in Android).value,
       (buildToolInfo            in Android).value,
       (dexAdditionalParams      in Android).value)
-    Dex.dex(bldr(s.log), dexOpts, Nil, None, true, lib, bin, false, debug, s)
+    val d = Dex.dex(bldr(s.log), dexOpts, Nil, None, true, lib, bin, false, debug, s)
+    f.delete()
+    d
   }
   private val protifyDexJarTaskDef = Def.task {
     implicit val out = (outputLayout in Android).value
