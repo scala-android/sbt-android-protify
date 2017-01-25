@@ -87,8 +87,9 @@ object AndroidProtify extends AutoPlugin {
       }
   ) ++ inConfig(Runtime)(Seq(
     dependencyClasspath :=
-      dependencyClasspath.value.filterNot(
-        _.data.getName.startsWith("localAAR-protify-agent"))
+      dependencyClasspath.value.filterNot(a =>
+      a.data.getParentFile.getName == "localAAR-protify-agent.aar" ||
+      a.data.getName.startsWith("localAAR-protify-agent"))
   )) ++ inConfig(Android)(List(
     useProguardInDebug  := false,
     localAars           += {
@@ -356,7 +357,7 @@ object AndroidProtify extends AutoPlugin {
     val lastMod = uc.getLastModified
     uc.getInputStream.close()
     if (layout.protifyAgentAar.lastModified < lastMod) {
-      Using.urlInputStream(android.Resources.resourceUrl("protify-agent.aar")) { in =>
+      Using.urlInputStream(url) { in =>
         Using.fileOutputStream(false)(layout.protifyAgentAar) { out =>
           Iterator.continually(in.read(buf, 0, buflen)).takeWhile(_ != -1) foreach (out.write(buf, 0, _))
         }
