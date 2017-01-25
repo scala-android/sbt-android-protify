@@ -724,7 +724,9 @@ object AndroidProtify extends AutoPlugin {
     implicit val out = (outputLayout in Android).value
     val layout  = (projectLayout  in Android).value
     val u = (unmanagedJars in Compile).value
-    val agentJar = u.find(_.data.getName startsWith "localAAR-protify-agent").get.data
+    val agentJar = u.find(a =>
+      a.data.getParentFile.getName == "localAAR-protify-agent.aar" ||
+      a.data.getName.startsWith("localAAR-protify-agent")).get.data
     val bldr    = (builder        in Android).value
     val lib     = (libraryProject in Android).value
     val bin     = layout.protifyDexAgent
