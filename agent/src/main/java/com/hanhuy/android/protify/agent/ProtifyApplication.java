@@ -264,10 +264,11 @@ public class ProtifyApplication extends Application {
                     }
 
                     if (mApplication.get(loadedApk) == this) {
+                        File externalResourceFile = ProtifyResources.getResourcesFile(this);
                         mApplication.set(loadedApk, realApplication);
-//                        if (externalResourceFile != null) {
-//                            mResDir.set(loadedApk, externalResourceFile);
-//                        }
+                        if (externalResourceFile.isFile()) {
+                            mResDir.set(loadedApk, externalResourceFile.getAbsolutePath());
+                        }
 
                         if (mLoadedApk != null) {
                             mLoadedApk.set(realApplication, loadedApk);
