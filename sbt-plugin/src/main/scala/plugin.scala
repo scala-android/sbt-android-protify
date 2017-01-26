@@ -4,18 +4,18 @@ import java.io.File
 import java.net.URLEncoder
 
 import android.Keys.Internal._
-import android.{BuildOutput, Aggregate, Dex}
+import android.{Aggregate, BuildOutput, Dex}
 import com.android.ddmlib.IDevice
 import com.hanhuy.sbt.bintray.UpdateChecker
 import sbt.Def.Initialize
 import sbt._
 import sbt.Keys._
 import android.Keys._
+import com.android.builder.packaging.PackagingUtils
 import sbt.classpath.ClasspathUtilities
 import xsbt.api.Discovery
 
 import scala.annotation.tailrec
-
 import sbt.Cache.seqFormat
 import sbt.Cache.StringFormat
 import sbt.Cache.IntFormat
@@ -49,7 +49,7 @@ object AndroidProtify extends AutoPlugin {
     streams in update <<= (streams in update) dependsOn (protifyLibraryDependencies in Protify, protifyExtractAgent in Protify),
     protify <<= protifyTaskDef,
     protifyLayout <<= protifyLayoutTaskDef(),
-    protifyLayout <<= protifyLayout dependsOn (packageResources in Android, compile in Compile)
+    protifyLayout <<= protifyLayout dependsOn (packageResources in Protify, compile in Compile)
   ) ++ inConfig(Protify)(List(
     clean <<= protifyCleanTaskDef,
     // because Keys.install and debug are implicitly 'in Android' (1.5.5+)
@@ -67,6 +67,27 @@ object AndroidProtify extends AutoPlugin {
     javacOptions := (javacOptions in Compile).value,
     scalacOptions := (scalacOptions in Compile).value,
     sourceGenerators <<= sourceGenerators in Compile,
+    packageResources in Protify   := {
+      val resapk = (packageResources in Android).value
+      val layout = (projectLayout in Android).value
+      implicit val out = (outputLayout in Android).value
+      val s = streams.value
+      FileFunction.cached(s.cacheDirectory / "protify-resapk",
+          FilesInfo.hash, FilesInfo.exists) { in =>
+        IO.delete(layout.protifyResApkTemp)
+        layout.protifyResApkTemp.mkdirs()
+        IO.unzip(resapk, layout.protifyResApkTemp)
+        IO.delete(layout.protifyResApk)
+        val mappings =
+          ((PathFinder(layout.protifyResApkTemp) ** android.FileOnlyFilter)
+            pair relativeTo(layout.protifyResApkTemp)) ++
+          ((PathFinder(layout.mergedAssets) ** android.FileOnlyFilter)
+            pair rebase(layout.mergedAssets, "assets"))
+        Zip.resources(mappings, layout.protifyResApk)
+        Set(layout.protifyResApk)
+      }(Set(resapk) ++ (layout.mergedAssets ** android.FileOnlyFilter).get)
+      layout.protifyResApk
+    },
     unmanagedSourceDirectories :=
       (unmanagedSourceDirectories in Compile).value ++ {
         val layout = (projectLayout in Android).value
@@ -440,7 +461,7 @@ object AndroidProtify extends AutoPlugin {
       EOF.map(_ => None) | (Space ~> Parser.opt(token(NotSpace examples layouts.toSet) ~ Parser.opt((Space ~> Parser.oneOf(themes)) <~ SpaceClass.*)))
     }
     Def.inputTask {
-      val res = (packageResources in Android).value
+      val res = (packageResources in Protify).value
       val l = parser.parsed
       val log = streams.value.log
       val all = (allDevices in Android).value
@@ -558,12 +579,16 @@ object AndroidProtify extends AutoPlugin {
       val pushlen = (if (pushres) res.length else 0) + (if (pushdex) topush.map(_._1.length).sum else 0)
       if (pushres || pushdex) {
         android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
-          if (pushres)
-            dev.pushFile(res.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${restmp.getName}")
+          if (pushres) {
+            val resdest = s"/data/local/tmp/protify/$pkg/${restmp.getName}"
+            log.debug(s"Pushing ${res.getAbsolutePath} to $resdest")
+            dev.pushFile(res.getAbsolutePath, resdest)
+          }
           if (pushdex) {
             dev.pushFile(dexinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${dexinfo.getName}")
             dexinfo.delete()
             dexlist.foreach { case (d, p, n) =>
+              log.debug(s"Pushing ${d.getAbsolutePath} to $p")
               dev.pushFile(d.getAbsolutePath, p)
             }
           }
@@ -586,7 +611,7 @@ object AndroidProtify extends AutoPlugin {
   }
 
   val protifyTaskDef = Def.task {
-    val res = (packageResources in Android).value
+    val res = (packageResources in Protify).value
     val layout = (projectLayout in Android).value
     implicit val output = (outputLayout in Android).value
     val all = (allDevices in Android).value
@@ -606,7 +631,7 @@ object AndroidProtify extends AutoPlugin {
       Commands.targetDevice(sdk, st.log) foreach execute
   }
   val protifyInstallTaskDef = Def.task {
-    val res = (packageResources in Android).value
+    val res = (packageResources in Protify).value
     val layout = (projectLayout in Android).value
     implicit val output = (outputLayout in Android).value
     val all = (allDevices in Android).value
@@ -864,10 +889,113 @@ object AndroidProtify extends AutoPlugin {
       path.getParentFile.mkdirs()
       path
     }
+    def protifyResApkTemp = protify / "resapk-unpacked"
+    def protifyResApk = protify / "protify-resources.ap_"
     def protifyAppInfoDescriptor = protify / "protify_application_info.txt"
     def protifyDescriptorJar = protify / "protify-descriptor.jar"
   }
   implicit class SafeIDevice (val device: IDevice) extends AnyVal {
     def safeSerial = URLEncoder.encode(device.getSerialNumber, "utf-8")
+  }
+
+  object Zip {
+    import java.util.zip._
+
+    def resources(sources: Traversable[(File, String)], outputZip: File): Unit =
+      archive(sources.toSeq, outputZip)
+
+    private def archive(sources: Seq[(File, String)], outputFile: File) {
+      val noCompress = PackagingUtils.getDefaultNoCompressPredicate
+      if (outputFile.isDirectory)
+        sys.error("Specified output file " + outputFile + " is a directory.")
+      else {
+        val outputDir = outputFile.getParentFile
+        IO.createDirectory(outputDir)
+        withZipOutput(outputFile) { output =>
+          val createEntry: (String => ZipEntry) = name => {
+            val ze = new ZipEntry(name)
+            ze.setMethod(if (noCompress(name)) ZipEntry.STORED else ZipEntry.DEFLATED)
+            ze
+          }
+          writeZip(sources, output)(createEntry)
+        }
+      }
+    }
+    private def writeZip(sources: Seq[(File, String)], output: ZipOutputStream)(createEntry: String => ZipEntry) {
+      val files = sources.flatMap { case (file, name) => if (file.isFile) (file, normalizeName(name)) :: Nil else Nil }
+
+      val now = System.currentTimeMillis
+      // The CRC32 for an empty value, needed to store directories in zip files
+      val emptyCRC = new CRC32().getValue
+
+      def addDirectoryEntry(name: String) {
+        output putNextEntry makeDirectoryEntry(name)
+        output.closeEntry()
+      }
+
+      def makeDirectoryEntry(name: String) =
+      {
+        //			log.debug("\tAdding directory " + relativePath + " ...")
+        val e = createEntry(name)
+        e setTime now
+        e setSize 0
+        e setMethod ZipEntry.STORED
+        e setCrc emptyCRC
+        e
+      }
+
+      def makeFileEntry(file: File, name: String, crc: Long) =
+      {
+        //			log.debug("\tAdding " + file + " as " + name + " ...")
+        val e = createEntry(name)
+        e setTime file.lastModified
+        if (e.getMethod == ZipEntry.STORED) {
+          e.setSize(file.length)
+          e.setCrc(crc)
+        }
+        e
+      }
+      def addFileEntry(file: File, name: String) {
+        val baos = new java.io.ByteArrayOutputStream(file.length.toInt)
+        IO.transfer(file, baos)
+        val bs = baos.toByteArray
+        val crc = new CRC32()
+        crc.update(bs)
+
+        output putNextEntry makeFileEntry(file, name, crc.getValue)
+        val bais = new java.io.ByteArrayInputStream(bs)
+        IO.transfer(bais, output)
+        output.closeEntry()
+      }
+
+      //Calculate directories and add them to the generated Zip
+//      allDirectoryPaths(files) foreach addDirectoryEntry
+
+      //Add all files to the generated Zip
+      files foreach { case (file, name) => addFileEntry(file, name) }
+    }
+    private def relativeComponents(path: String): List[String] =
+      path.split("/").toList.dropRight(1)
+    private def directories(path: List[String]): List[String] =
+      path.foldLeft(List(""))((e, l) => (e.head + l + "/") :: e)
+    private def directoryPaths(path: String): List[String] =
+      directories(relativeComponents(path)).filter(_.length > 1)
+    private def allDirectoryPaths(files: Iterable[(File, String)]) =
+      collection.immutable.TreeSet[String]() ++ (files flatMap { case (file, name) => directoryPaths(name) })
+    private def withZipOutput(file: File)(f: ZipOutputStream => Unit) {
+      Using.fileOutputStream(false)(file) { fileOut =>
+        val (zipOut, ext) = (new ZipOutputStream(fileOut), "zip")
+        try {
+          f(zipOut)
+        }
+        finally {
+          zipOut.close()
+        }
+      }
+    }
+    private def normalizeName(name: String) = {
+      val sep = File.separatorChar
+      if (sep == '/') name else name.replace(sep, '/')
+    }
   }
 }

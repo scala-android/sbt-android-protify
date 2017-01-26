@@ -103,6 +103,7 @@ val lib = project.in(file("lib")).settings(androidBuildJar).settings(
   homepage := Some(url("https://github.com/pfn/protify"))
 )
 
+/*
 val mobile = project.in(file("android")).settings(androidBuild).settings(
   platformTarget in Android := "android-22",
   versionName in Android := Some(version.value),
@@ -227,7 +228,8 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
     "vmSafeMode" -> (apkbuildDebug in Android).value().toString
   )
 ).dependsOn(lib, common)
+*/
 
-Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
+//Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
 version in Global := "1.4.1-SNAPSHOT"
