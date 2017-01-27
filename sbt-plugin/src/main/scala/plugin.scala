@@ -899,6 +899,7 @@ object AndroidProtify extends AutoPlugin {
   }
 
   object Zip {
+    // copied from IO.zip and its implementations
     import java.util.zip._
 
     def resources(sources: Traversable[(File, String)], outputZip: File): Unit =
@@ -928,24 +929,7 @@ object AndroidProtify extends AutoPlugin {
       // The CRC32 for an empty value, needed to store directories in zip files
       val emptyCRC = new CRC32().getValue
 
-      def addDirectoryEntry(name: String) {
-        output putNextEntry makeDirectoryEntry(name)
-        output.closeEntry()
-      }
-
-      def makeDirectoryEntry(name: String) =
-      {
-        //			log.debug("\tAdding directory " + relativePath + " ...")
-        val e = createEntry(name)
-        e setTime now
-        e setSize 0
-        e setMethod ZipEntry.STORED
-        e setCrc emptyCRC
-        e
-      }
-
-      def makeFileEntry(file: File, name: String, crc: Long) =
-      {
+      def makeFileEntry(file: File, name: String, crc: Long) = {
         //			log.debug("\tAdding " + file + " as " + name + " ...")
         val e = createEntry(name)
         e setTime file.lastModified
@@ -968,20 +952,9 @@ object AndroidProtify extends AutoPlugin {
         output.closeEntry()
       }
 
-      //Calculate directories and add them to the generated Zip
-//      allDirectoryPaths(files) foreach addDirectoryEntry
-
       //Add all files to the generated Zip
       files foreach { case (file, name) => addFileEntry(file, name) }
     }
-    private def relativeComponents(path: String): List[String] =
-      path.split("/").toList.dropRight(1)
-    private def directories(path: List[String]): List[String] =
-      path.foldLeft(List(""))((e, l) => (e.head + l + "/") :: e)
-    private def directoryPaths(path: String): List[String] =
-      directories(relativeComponents(path)).filter(_.length > 1)
-    private def allDirectoryPaths(files: Iterable[(File, String)]) =
-      collection.immutable.TreeSet[String]() ++ (files flatMap { case (file, name) => directoryPaths(name) })
     private def withZipOutput(file: File)(f: ZipOutputStream => Unit) {
       Using.fileOutputStream(false)(file) { fileOut =>
         val (zipOut, ext) = (new ZipOutputStream(fileOut), "zip")
