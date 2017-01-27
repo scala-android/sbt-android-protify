@@ -266,7 +266,13 @@ public class ProtifyApplication extends Application {
                     if (mApplication.get(loadedApk) == this) {
                         File externalResourceFile = ProtifyResources.getResourcesFile(this);
                         mApplication.set(loadedApk, realApplication);
+                        ApplicationInfo info = getApplicationInfo();
+                        if (info != null && new File(info.sourceDir).lastModified() > externalResourceFile.lastModified()) {
+                            Log.v(TAG, "Deleting out of date external resources");
+                            externalResourceFile.delete();
+                        }
                         if (externalResourceFile.isFile()) {
+                            Log.v(TAG, "Setting mResDir to: " + externalResourceFile.getAbsolutePath());
                             mResDir.set(loadedApk, externalResourceFile.getAbsolutePath());
                         }
 
