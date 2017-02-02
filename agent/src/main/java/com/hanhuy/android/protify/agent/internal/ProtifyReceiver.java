@@ -75,7 +75,9 @@ public class ProtifyReceiver extends BroadcastReceiver {
         } else if (Intents.CLEAN_INTENT.equals(action)) {
             Log.v(TAG, "Clearing resources and dex from cache");
             try {
-                ProtifyResources.getResourcesFile(context).delete();
+                for (File f : ProtifyResources.getResourceFiles(context)) {
+                    f.delete();
+                }
                 File[] files = DexLoader.getDexExtractionDir(context).listFiles();
                 if (files != null) {
                     for (File f : files) {
@@ -98,10 +100,11 @@ public class ProtifyReceiver extends BroadcastReceiver {
     private InstallState install(Bundle extras, Context context) {
         if (extras != null) {
             String resources = extras.getString(Intents.EXTRA_RESOURCES);
+            String resinfo = extras.getString(Intents.EXTRA_RES_INFO);
             String dexInfo = extras.getString(Intents.EXTRA_DEX_INFO);
             File dexInfoFile = dexInfo == null ? null : new File(dexInfo);
             boolean hasDex = dexInfoFile != null && dexInfoFile.isFile() && dexInfoFile.length() > 0;
-            boolean hasRes = ProtifyResources.updateResourcesFile(context, resources);
+            boolean hasRes = ProtifyResources.updateResourcesFile(context, resources, resinfo);
             if (hasRes) ProtifyApplication.installExternalResources(context);
             if (hasDex) {
                 try {

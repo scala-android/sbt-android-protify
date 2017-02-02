@@ -10,6 +10,7 @@ public interface Intents {
     public final static String EXTRA_DEX = "com.hanhuy.android.protify.extra.DEX";
     public final static String EXTRA_CLASS = "com.hanhuy.android.protify.extra.CLASS";
     public final static String EXTRA_RESOURCES = "com.hanhuy.android.protify.extra.RESOURCES";
+    public final static String EXTRA_RES_INFO = "com.hanhuy.android.protify.extra.RES_INFO";
     public final static String EXTRA_THEME = "com.hanhuy.android.protify.extra.THEME";
     public final static String EXTRA_RTXT = "com.hanhuy.android.protify.extra.RTXT";
     public final static String EXTRA_RTXT_HASH = "com.hanhuy.android.protify.extra.RTXT_HASH";

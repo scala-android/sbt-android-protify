@@ -264,16 +264,20 @@ public class ProtifyApplication extends Application {
                     }
 
                     if (mApplication.get(loadedApk) == this) {
-                        File externalResourceFile = ProtifyResources.getResourcesFile(this);
+                        File[] fs = ProtifyResources.getResourceFiles(this);
+                        deleteDirtyExternalResources(this, fs);
                         mApplication.set(loadedApk, realApplication);
-                        ApplicationInfo info = getApplicationInfo();
-                        if (info != null && new File(info.sourceDir).lastModified() > externalResourceFile.lastModified()) {
-                            Log.v(TAG, "Deleting out of date external resources");
-                            externalResourceFile.delete();
-                        }
-                        if (externalResourceFile.isFile()) {
-                            Log.v(TAG, "Setting mResDir to: " + externalResourceFile.getAbsolutePath());
-                            mResDir.set(loadedApk, externalResourceFile.getAbsolutePath());
+                        if (fs.length > 1) {
+                            Field mSplitResDirs = loadedApkClass.getDeclaredField("mSplitResDirs");
+                            mSplitResDirs.setAccessible(true);
+                            String[] ss = new String[fs.length];
+                            for (int i = 0; i < fs.length; i++) {
+                                ss[i] = fs[i].getAbsolutePath();
+                            }
+                            mSplitResDirs.set(loadedApk, ss);
+                        } else if (fs.length == 0 && fs[0].isFile()) {
+                            Log.v(TAG, "Setting mResDir to: " + fs[0].getAbsolutePath());
+                            mResDir.set(loadedApk, fs[0].getAbsolutePath());
                         }
 
                         if (mLoadedApk != null) {
@@ -287,26 +291,33 @@ public class ProtifyApplication extends Application {
         }
     }
 
-    public static void installExternalResources(Context context) {
-        File f = ProtifyResources.getResourcesFile(context);
-        try {
-            ApplicationInfo info = context.getPackageManager().getApplicationInfo(
-                    context.getPackageName(), PackageManager.GET_META_DATA);
-            if (info != null && new File(info.sourceDir).lastModified() > f.lastModified()) {
-                Log.v(TAG, "Deleting outdated external resources");
-                f.delete();
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-            throw new IllegalStateException(e);
+    private static void deleteDirtyExternalResources(Context context, File[] fs) {
+        ApplicationInfo info = context.getApplicationInfo();
+        long sourceApkModified = new File(info.sourceDir).lastModified();
+        boolean dirty = false;
+        for (int i = 0; i < fs.length && !dirty; i++) {
+            dirty = sourceApkModified > fs[i].lastModified();
         }
-        if (f.isFile() && f.length() > 0) {
-            Log.v(TAG, "Installing external resource file: " + f);
+        if (dirty) {
+            Log.v(TAG, "Deleting outdated external resources");
+            for (File f : fs) f.delete();
+        }
+    }
+    public static void installExternalResources(Context context) {
+        File[] fs = ProtifyResources.getResourceFiles(context);
+        deleteDirtyExternalResources(context, fs);
+        boolean nonEmpty = true;
+        for (int i = 0; i < fs.length && nonEmpty; i++) {
+            nonEmpty = fs[i].isFile() && fs[i].length() > 0;
+        }
+        if (nonEmpty) {
+            Log.v(TAG, "Installing external resource file: " + fs);
             if (Build.VERSION.SDK_INT >= 24)
-                V24Resources.install(f.getAbsolutePath());
+                V24Resources.install(fs);
             else if (Build.VERSION.SDK_INT >= 18)
-                V19Resources.install(f.getAbsolutePath());
+                V19Resources.install(fs);
             else
-                V4Resources.install(f.getAbsolutePath());
+                V4Resources.install(fs);
             resourceInstallTime = System.currentTimeMillis();
         }
     }
@@ -358,9 +369,9 @@ public class ProtifyApplication extends Application {
 
     private static class V24Resources {
         @TargetApi(24)
-        static void install(String externalResourceFile) {
+        static void install(File[] externalResourceFiles) {
             try {
-                AssetManager newAssetManager = createAssetManager(externalResourceFile);
+                AssetManager newAssetManager = createAssetManager(externalResourceFiles);
 
                 // Find the singleton instance of ResourcesManager
                 Class<?> clazz = Class.forName("android.app.ResourcesManager");
@@ -384,9 +395,9 @@ public class ProtifyApplication extends Application {
     }
     private static class V19Resources {
         @TargetApi(19)
-        static void install(String externalResourceFile) {
+        static void install(File[] externalResourceFiles) {
             try {
-                AssetManager newAssetManager = createAssetManager(externalResourceFile);
+                AssetManager newAssetManager = createAssetManager(externalResourceFiles);
 
                 // Find the singleton instance of ResourcesManager
                 Class<?> clazz = Class.forName("android.app.ResourcesManager");
@@ -408,9 +419,9 @@ public class ProtifyApplication extends Application {
         }
     }
     private static class V4Resources {
-        static void install(String externalResourceFile) {
+        static void install(File[] externalResourceFiles) {
             try {
-                AssetManager newAssetManager = createAssetManager(externalResourceFile);
+                AssetManager newAssetManager = createAssetManager(externalResourceFiles);
 
                 // Find the singleton instance of ResourcesManager
                 Class<?> clazz = Class.forName("android.app.ActivityThread");
@@ -432,15 +443,17 @@ public class ProtifyApplication extends Application {
 
     }
 
-    private static AssetManager createAssetManager(String externalResourceFile)
+    private static AssetManager createAssetManager(File[] externalResourceFiles)
             throws InvocationTargetException, IllegalAccessException, NoSuchMethodException, InstantiationException {
         // Create a new AssetManager instance and point it to the resources installed under
         // /sdcard
         AssetManager newAssetManager = AssetManager.class.getConstructor().newInstance();
         Method mAddAssetPath = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
         mAddAssetPath.setAccessible(true);
-        if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile)) == 0) {
-            throw new IllegalStateException("Could not create new AssetManager");
+        for (File externalResourceFile : externalResourceFiles) {
+            if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile.getAbsolutePath())) == 0) {
+                throw new IllegalStateException("Could not create new AssetManager");
+            }
         }
 
         // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm

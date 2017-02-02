@@ -538,6 +538,7 @@ object AndroidProtify extends AutoPlugin {
     dev => {
       import java.io.File.createTempFile
 
+
       val installHash = layout.protifyInstalledHash(dev)
       if (!installHash.isFile)
         android.fail(s"Application has not been installed to ${dev.getSerialNumber}, android:install first")
@@ -545,6 +546,61 @@ object AndroidProtify extends AutoPlugin {
       val hashes = installed.map(_.split(":")(1)).toSet
       val topush = dexfileHashes.filterNot(d => hashes(d._2))
 
+      val devApi = Option(dev.getProperty(IDevice.PROP_BUILD_API_LEVEL)).flatMap(a => Try(a.toInt).toOption).getOrElse(0)
+      val restopush = if (devApi >= 21) { // device supports mSplitResDirs
+        val SHARD_GOAL = 1000000 // 1MB res file goal
+        val MAX_SHARDS = 50
+        val shardTemplate = "protify-resources-%s.ap_"
+        val tmp = layout.protifyResApkTemp
+        val shardTmp = layout.protifyResApkShards / "shards"
+        val shards = math.min(math.max(1, res.length / SHARD_GOAL), math.max(10, MAX_SHARDS))
+        if (shards > 1) {
+
+          val resourceShards = FileFunction.cached(st.cacheDirectory / "res-shards", FilesInfo.lastModified) { in =>
+            shardTmp.mkdirs()
+            val resources = tmp ** android.FileOnlyFilter get
+
+            val assets = layout.mergedAssets ** android.FileOnlyFilter get
+
+            val toShard = assets.map { a =>
+              val name = a.relativeTo(layout.mergedAssets).fold(
+                android.PluginFail(s"$a is not relative to ${layout.mergedAssets}"))(_.getName)
+              val shardTarget = 1 + math.abs(name.hashCode % shards)
+              (a, shardTmp / f"$shardTarget%02d" / "assets" / name)
+            } ++ resources.map { r =>
+              val name = r.relativeTo(tmp).fold(android.PluginFail(s"$r is not relative to $tmp"))(_.getPath)
+              val shardTarget = 1 + math.abs(name.hashCode % shards)
+              (r, shardTmp / f"$shardTarget%02d" / name)
+            }
+
+            IO.copy(toShard)
+
+            val resShards = shardTmp * "*" get
+
+            resShards.map { s =>
+              val i = s.getName
+
+              val mappings = ((PathFinder(s) ** android.FileOnlyFilter)
+                pair relativeTo(s))
+              val dest = layout.protifyResApkShards / (shardTemplate format i)
+              Zip.resources(mappings, dest)
+              dest
+            }.toSet
+          }(Set(res))
+          val resShardHashes = resourceShards.map(r => (r,r.getName)).map (f => (f._1, Hash.toHex(Hash(f._1)), f._2))
+          resShardHashes.toList.filterNot(d => hashes(d._2))
+        } else {
+          Nil
+        }
+      } else {
+        Nil
+      }
+
+      val reslist = restopush map { case (p, _, n) =>
+          val t = createTempFile("resources", ".ap_")
+          t.delete()
+        (p, s"/data/local/tmp/protify/$pkg/${t.getName}", n)
+      }
       val dexlist = topush map { case (p, _, n) =>
         val t = createTempFile("classes", ".dex")
         t.delete()
@@ -552,41 +608,50 @@ object AndroidProtify extends AutoPlugin {
       }
       val restmp = createTempFile("resources", ".ap_")
       restmp.delete()
+      val resinfo = createTempFile("res-info", ".txt")
+      resinfo.deleteOnExit()
       val dexinfo = createTempFile("dex-info", ".txt")
       dexinfo.deleteOnExit()
       val cmdS =
-        "am"   :: "broadcast"     ::
+        "am"   :: "broadcast"       ::
           "-a"   :: intent          ::
           "-e"   :: EXTRA_RESOURCES :: s"/data/local/tmp/protify/$pkg/${restmp.getName}"  ::
+          "-e"   :: EXTRA_RES_INFO  :: s"/data/local/tmp/protify/$pkg/${resinfo.getName}" ::
           "-e"   :: EXTRA_DEX_INFO  :: s"/data/local/tmp/protify/$pkg/${dexinfo.getName}" ::
           "-n"   ::
-          s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"       ::
+          s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"               ::
           Nil
 
 
       IO.write(dexinfo, dexlist.map(d => d._2 + ":" + d._3).mkString("\n"))
+      IO.write(resinfo, reslist.map(d => d._2 + ":" + d._3).mkString("\n"))
 
       log.debug("Executing: " + cmdS.mkString(" "))
 
       dev.executeShellCommand(s"rm -r /data/local/tmp/protify/$pkg/*", new android.Commands.ShellResult)
       var pushres = false
-      var pushdex = false
+      var pushdex = dexlist.nonEmpty
       FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
-        pushres = true
+        pushres = restopush.isEmpty
         in
       }(Set(res))
-      pushdex = dexlist.nonEmpty
       val pushlen = (if (pushres) res.length else 0) + (if (pushdex) topush.map(_._1.length).sum else 0)
-      if (pushres || pushdex) {
+      if (pushres || restopush.nonEmpty || pushdex) {
         android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
           if (pushres) {
             val resdest = s"/data/local/tmp/protify/$pkg/${restmp.getName}"
             log.debug(s"Pushing ${res.getAbsolutePath} to $resdest")
             dev.pushFile(res.getAbsolutePath, resdest)
           }
+          if (restopush.nonEmpty) {
+            dev.pushFile(resinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${resinfo.getName}")
+            reslist.foreach { case (d, p, n) =>
+              log.debug(s"Pushing ${d.getAbsolutePath} to $p")
+              dev.pushFile(d.getAbsolutePath, p)
+            }
+          }
           if (pushdex) {
             dev.pushFile(dexinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${dexinfo.getName}")
-            dexinfo.delete()
             dexlist.foreach { case (d, p, n) =>
               log.debug(s"Pushing ${d.getAbsolutePath} to $p")
               dev.pushFile(d.getAbsolutePath, p)
@@ -595,15 +660,16 @@ object AndroidProtify extends AutoPlugin {
         }
         dev.executeShellCommand(cmdS.mkString(" "), new android.Commands.ShellResult)
       }
+      resinfo.delete()
+      dexinfo.delete()
 
       val oldhashes = installed.map { i =>
         val split = i.split(":")
         (split(0),split(1))
       }.toMap
 
-      val newhashes = topush.map { n =>
-        (n._3,n._2)
-      }.toMap
+      val newhashes = (restopush.map { n => (n._3,n._2) } ++
+        topush.map { n => (n._3,n._2) }).toMap
 
       IO.writeLines(layout.protifyInstalledHash(dev),
         oldhashes ++ newhashes map { case (k,v) => s"$k:$v" } toList)
@@ -708,6 +774,9 @@ object AndroidProtify extends AutoPlugin {
       val pkg = (applicationId in Android).value
       implicit val out = (outputLayout in Android).value
       val layout = (projectLayout in Android).value
+      IO.delete(layout.protifyResApkTemp)
+      IO.delete(layout.protifyResApkShards)
+      layout.protifyResApk.delete()
       layout.protifyPublicXml.delete()
       layout.rTxt.delete()
       import android.Commands
@@ -889,6 +958,7 @@ object AndroidProtify extends AutoPlugin {
       path.getParentFile.mkdirs()
       path
     }
+    def protifyResApkShards = protify / "resapk-shards"
     def protifyResApkTemp = protify / "resapk-unpacked"
     def protifyResApk = protify / "protify-resources.ap_"
     def protifyAppInfoDescriptor = protify / "protify_application_info.txt"
