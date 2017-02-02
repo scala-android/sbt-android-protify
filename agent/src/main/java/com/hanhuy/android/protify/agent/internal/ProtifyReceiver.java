@@ -157,6 +157,7 @@ public class ProtifyReceiver extends BroadcastReceiver {
                     throw new RuntimeException("Cannot copy DEX: " + e.getMessage(), e);
                 }
             }
+            dexInfoFile.delete();
             return new InstallState(hasRes, hasDex);
         }
         return InstallState.NONE;

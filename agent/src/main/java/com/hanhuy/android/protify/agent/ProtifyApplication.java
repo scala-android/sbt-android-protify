@@ -265,19 +265,30 @@ public class ProtifyApplication extends Application {
 
                     if (mApplication.get(loadedApk) == this) {
                         File[] fs = ProtifyResources.getResourceFiles(this);
-                        deleteDirtyExternalResources(this, fs);
+                        boolean deleted = deleteDirtyExternalResources(this, fs);
                         mApplication.set(loadedApk, realApplication);
-                        if (fs.length > 1) {
-                            Field mSplitResDirs = loadedApkClass.getDeclaredField("mSplitResDirs");
-                            mSplitResDirs.setAccessible(true);
-                            String[] ss = new String[fs.length];
-                            for (int i = 0; i < fs.length; i++) {
-                                ss[i] = fs[i].getAbsolutePath();
+                        if (!deleted) {
+                            if (fs.length == 0 && fs[0].isFile()) {
+                                Log.v(TAG, "Setting mResDir to: " + fs[0].getAbsolutePath());
+                                mResDir.set(loadedApk, fs[0].getAbsolutePath());
                             }
-                            mSplitResDirs.set(loadedApk, ss);
-                        } else if (fs.length == 0 && fs[0].isFile()) {
-                            Log.v(TAG, "Setting mResDir to: " + fs[0].getAbsolutePath());
-                            mResDir.set(loadedApk, fs[0].getAbsolutePath());
+                            if (fs.length > 1) {
+                                // this only ever happens on v21+
+                                File[] tail = fs; // new File[fs.length - 1];
+//                                System.arraycopy(fs, 1, tail, 0, tail.length);
+                                Field mSplitResDirs = loadedApkClass.getDeclaredField("mOverlayDirs");
+                                mSplitResDirs.setAccessible(true);
+                                String[] ss = new String[tail.length];
+                                StringBuilder sb = new StringBuilder();
+                                for (int i = 0; i < tail.length; i++) {
+                                    ss[i] = tail[i].getAbsolutePath();
+                                    sb.append(ss[i]);
+                                    sb.append(";");
+                                }
+                                sb.setLength(sb.length() - 1);
+                                Log.v(TAG, "Setting mOverlayDirs to: " + sb);
+                                mSplitResDirs.set(loadedApk, ss);
+                            }
                         }
 
                         if (mLoadedApk != null) {
@@ -291,10 +302,17 @@ public class ProtifyApplication extends Application {
         }
     }
 
-    private static void deleteDirtyExternalResources(Context context, File[] fs) {
+    private static boolean deleteDirtyExternalResources(Context context, File[] fs) {
         ApplicationInfo info = context.getApplicationInfo();
         long sourceApkModified = new File(info.sourceDir).lastModified();
         boolean dirty = false;
+        StringBuilder sb = new StringBuilder();
+        for (File f : fs) {
+            sb.append(f.getAbsolutePath());
+            sb.append(";");
+        }
+        sb.setLength(sb.length() - 1);
+        Log.v(TAG, "Checking for dirty resources in: " + sb);
         for (int i = 0; i < fs.length && !dirty; i++) {
             dirty = sourceApkModified > fs[i].lastModified();
         }
@@ -302,16 +320,23 @@ public class ProtifyApplication extends Application {
             Log.v(TAG, "Deleting outdated external resources");
             for (File f : fs) f.delete();
         }
+        return dirty;
     }
     public static void installExternalResources(Context context) {
         File[] fs = ProtifyResources.getResourceFiles(context);
         deleteDirtyExternalResources(context, fs);
-        boolean nonEmpty = true;
-        for (int i = 0; i < fs.length && nonEmpty; i++) {
+        boolean nonEmpty = false;
+        for (int i = 0; i < fs.length && !nonEmpty; i++) {
             nonEmpty = fs[i].isFile() && fs[i].length() > 0;
         }
         if (nonEmpty) {
-            Log.v(TAG, "Installing external resource file: " + fs);
+            StringBuilder sb = new StringBuilder();
+            for (File f : fs) {
+                sb.append(f.getAbsolutePath());
+                sb.append(";");
+            }
+            sb.setLength(sb.length() - 1);
+            Log.v(TAG, "Installing external resource files: " + sb);
             if (Build.VERSION.SDK_INT >= 24)
                 V24Resources.install(fs);
             else if (Build.VERSION.SDK_INT >= 18)
@@ -454,6 +479,7 @@ public class ProtifyApplication extends Application {
             if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile.getAbsolutePath())) == 0) {
                 throw new IllegalStateException("Could not create new AssetManager");
             }
+            Log.v(TAG, "Added external resource file: " + externalResourceFile.getAbsolutePath());
         }
 
         // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm

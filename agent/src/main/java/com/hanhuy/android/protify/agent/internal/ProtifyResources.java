@@ -55,7 +55,7 @@ public class ProtifyResources {
                 Log.v(TAG, "Loading resource shard from " + res0 + " to " + res1);
                 File resfile = new File(res0);
                 FileChannel ch = new FileInputStream(resfile).getChannel();
-                File dest = new File(context.getFilesDir(), res1);
+                File dest = new File(getResourcesBase(context), res1);
                 FileChannel ch2 = new FileOutputStream(dest, false).getChannel();
                 try {
                     ch.transferTo(0, resfile.length(), ch2);
@@ -65,12 +65,13 @@ public class ProtifyResources {
                 }
             }
         } finally {
+            resInfo.delete();
             r.close();
         }
     }
 
     public static File[] getResourceFiles(Context ctx) {
-        File base = new File(ctx.getFilesDir(), "protify-resources");
+        File base = getResourcesBase(ctx);
 
         File[] shards = base.listFiles(new FilenameFilter() {
             @Override
@@ -78,12 +79,16 @@ public class ProtifyResources {
                 return filename.startsWith("protify-resources-") && filename.endsWith(".ap_");
             }
         });
-        return shards != null ? shards : new File[] { getResourcesFile(ctx) };
+        return shards != null && shards.length > 0 ? shards : new File[] { getResourcesFile(ctx) };
     }
 
     private static File getResourcesFile(Context ctx) {
-        File f = new File(ctx.getFilesDir(), "protify-resources");
+        File f = getResourcesBase(ctx);
         f.mkdirs();
         return new File(f, "protify-resources.ap_");
+    }
+
+    private static File getResourcesBase(Context ctx) {
+        return new File(ctx.getFilesDir(), "protify-resources");
     }
 }

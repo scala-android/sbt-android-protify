@@ -547,7 +547,8 @@ object AndroidProtify extends AutoPlugin {
       val topush = dexfileHashes.filterNot(d => hashes(d._2))
 
       val devApi = Option(dev.getProperty(IDevice.PROP_BUILD_API_LEVEL)).flatMap(a => Try(a.toInt).toOption).getOrElse(0)
-      val restopush = if (devApi >= 21) { // device supports mSplitResDirs
+      val v21 = devApi >= 21
+      val restopush = if (v21) { // device supports mSplitResDirs
         val SHARD_GOAL = 1000000 // 1MB res file goal
         val MAX_SHARDS = 50
         val shardTemplate = "protify-resources-%s.ap_"
@@ -590,7 +591,8 @@ object AndroidProtify extends AutoPlugin {
           val resShardHashes = resourceShards.map(r => (r,r.getName)).map (f => (f._1, Hash.toHex(Hash(f._1)), f._2))
           resShardHashes.toList.filterNot(d => hashes(d._2))
         } else {
-          Nil
+          val resShardHashes = List(res).map(r => (r,r.getName)).map (f => (f._1, Hash.toHex(Hash(f._1)), f._2))
+          resShardHashes.filterNot(d => hashes(d._2))
         }
       } else {
         Nil
@@ -632,21 +634,25 @@ object AndroidProtify extends AutoPlugin {
       var pushres = false
       var pushdex = dexlist.nonEmpty
       FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
-        pushres = restopush.isEmpty
+        pushres = !v21
         in
       }(Set(res))
-      val pushlen = (if (pushres) res.length else 0) + (if (pushdex) topush.map(_._1.length).sum else 0)
+      val pushlen = (if (pushres) res.length else 0) +
+        (if (pushdex) topush.map(_._1.length).sum else 0) +
+        (if (restopush.nonEmpty) restopush.map(_._1.length).sum else 0)
       if (pushres || restopush.nonEmpty || pushdex) {
         android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
           if (pushres) {
             val resdest = s"/data/local/tmp/protify/$pkg/${restmp.getName}"
             log.debug(s"Pushing ${res.getAbsolutePath} to $resdest")
+            log.info(s"Sending ${res.getName}")
             dev.pushFile(res.getAbsolutePath, resdest)
           }
           if (restopush.nonEmpty) {
             dev.pushFile(resinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${resinfo.getName}")
             reslist.foreach { case (d, p, n) =>
               log.debug(s"Pushing ${d.getAbsolutePath} to $p")
+              log.info(s"Sending ${d.getName}")
               dev.pushFile(d.getAbsolutePath, p)
             }
           }
@@ -654,6 +660,7 @@ object AndroidProtify extends AutoPlugin {
             dev.pushFile(dexinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${dexinfo.getName}")
             dexlist.foreach { case (d, p, n) =>
               log.debug(s"Pushing ${d.getAbsolutePath} to $p")
+              log.info(s"Sending ${d.getName}")
               dev.pushFile(d.getAbsolutePath, p)
             }
           }
@@ -976,7 +983,8 @@ object AndroidProtify extends AutoPlugin {
       archive(sources.toSeq, outputZip)
 
     private def archive(sources: Seq[(File, String)], outputFile: File) {
-      val noCompress = PackagingUtils.getDefaultNoCompressPredicate
+      val defaultNoCompress = PackagingUtils.getDefaultNoCompressPredicate
+      val noCompress = (s: String) => s.startsWith("res/raw/") || defaultNoCompress(s)
       if (outputFile.isDirectory)
         sys.error("Specified output file " + outputFile + " is a directory.")
       else {
