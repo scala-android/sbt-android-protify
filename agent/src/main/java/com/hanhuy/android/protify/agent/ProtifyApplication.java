@@ -171,13 +171,47 @@ public class ProtifyApplication extends Application {
         if (Build.VERSION.SDK_INT >= 14) {
             realApplication.registerActivityLifecycleCallbacks(
                     LifecycleListener.getInstance());
-        }
+       }
     }
 
+    public InputStream openRawResource(android.content.res.Resources r, int id) throws android.content.res.Resources.NotFoundException {
+        android.util.TypedValue value = new android.util.TypedValue();
+        r.getValue(id, value, true);
+        Log.v(TAG, "assetCookie: " + value.assetCookie);
+        Log.v(TAG, "string: " + value.string);
+        return r.openRawResource(id, value);
+    }
     @Override
     public void onCreate() {
         installRealApplication();
+        try {
+            Method openNonAsset = AssetManager.class.getDeclaredMethod("openNonAsset", String.class);
+            AssetManager am = realApplication.getAssets();
+            Log.v(TAG, "open beep!");
+            openNonAsset.invoke(am, "res/raw/beep.mp3");
+            Log.v(TAG, "open cert!");
+            openNonAsset.invoke(am, "res/raw/cert.p12");
+            Log.v(TAG, "open raw!");
+            openRawResource(realApplication.getResources(),0x7f060001);
+        } catch (Exception e) {
+            throw new IllegalStateException(e);
+        }
         installExternalResources(this);
+        try {
+            Method openNonAsset = AssetManager.class.getDeclaredMethod("openNonAsset", String.class);
+            Method openNonAsset2 = AssetManager.class.getDeclaredMethod("openNonAsset", int.class, String.class);
+            AssetManager am = realApplication.getAssets();
+            Log.v(TAG, "2open beep!");
+            openNonAsset.invoke(am, "res/raw/beep.mp3");
+            Log.v(TAG, "2open cert!");
+            openNonAsset.invoke(am, "res/raw/cert.p12");
+            Log.v(TAG, "2open raw!");
+//            openNonAsset2.invoke(am, 11, "res/raw/cert.p12");
+            // doesn't work because resources.arsc doesn't reflect the contents of the resapk shard
+            openRawResource(realApplication.getResources(),0x7f060001);
+        } catch (Exception e) {
+            Log.e(TAG, "failed to open", e);
+        }
         enableContentProviders();
         super.onCreate();
         realApplication.onCreate();
@@ -268,26 +302,26 @@ public class ProtifyApplication extends Application {
                         boolean deleted = deleteDirtyExternalResources(this, fs);
                         mApplication.set(loadedApk, realApplication);
                         if (!deleted) {
-                            if (fs.length == 0 && fs[0].isFile()) {
+                            if (fs.length > 0 && fs[0].isFile()) {
                                 Log.v(TAG, "Setting mResDir to: " + fs[0].getAbsolutePath());
                                 mResDir.set(loadedApk, fs[0].getAbsolutePath());
-                            }
-                            if (fs.length > 1) {
-                                // this only ever happens on v21+
-                                File[] tail = fs; // new File[fs.length - 1];
-//                                System.arraycopy(fs, 1, tail, 0, tail.length);
-                                Field mSplitResDirs = loadedApkClass.getDeclaredField("mOverlayDirs");
-                                mSplitResDirs.setAccessible(true);
-                                String[] ss = new String[tail.length];
-                                StringBuilder sb = new StringBuilder();
-                                for (int i = 0; i < tail.length; i++) {
-                                    ss[i] = tail[i].getAbsolutePath();
-                                    sb.append(ss[i]);
-                                    sb.append(";");
+                                if (fs.length > 1) {
+                                    // this only ever happens on v21+
+                                    File[] tail = new File[fs.length - 1];
+                                    System.arraycopy(fs, 1, tail, 0, tail.length);
+                                    Field mSplitResDirs = loadedApkClass.getDeclaredField("mSplitResDirs");
+                                    mSplitResDirs.setAccessible(true);
+                                    String[] ss = new String[tail.length];
+                                    StringBuilder sb = new StringBuilder();
+                                    for (int i = 0; i < tail.length; i++) {
+                                        ss[i] = tail[i].getAbsolutePath();
+                                        sb.append(ss[i]);
+                                        sb.append(";");
+                                    }
+                                    sb.setLength(sb.length() - 1);
+                                    Log.v(TAG, "Setting mSplitResDirs to: " + sb);
+                                    mSplitResDirs.set(loadedApk, ss);
                                 }
-                                sb.setLength(sb.length() - 1);
-                                Log.v(TAG, "Setting mOverlayDirs to: " + sb);
-                                mSplitResDirs.set(loadedApk, ss);
                             }
                         }
 
@@ -476,10 +510,13 @@ public class ProtifyApplication extends Application {
         Method mAddAssetPath = AssetManager.class.getDeclaredMethod("addAssetPath", String.class);
         mAddAssetPath.setAccessible(true);
         for (File externalResourceFile : externalResourceFiles) {
-            if (((int) mAddAssetPath.invoke(newAssetManager, externalResourceFile.getAbsolutePath())) == 0) {
-                throw new IllegalStateException("Could not create new AssetManager");
+            if (externalResourceFile.isFile()) {
+                int cookie = (int) mAddAssetPath.invoke(newAssetManager, externalResourceFile.getAbsolutePath());
+                if (cookie == 0) {
+                    throw new IllegalStateException("Could not create new AssetManager");
+                }
+                Log.v(TAG, "Added external resource file: " + cookie + " " + externalResourceFile.getAbsolutePath());
             }
-            Log.v(TAG, "Added external resource file: " + externalResourceFile.getAbsolutePath());
         }
 
         // Kitkat needs this method call, Lollipop doesn't. However, it doesn't seem to cause any harm

@@ -577,6 +577,9 @@ object AndroidProtify extends AutoPlugin {
             IO.copy(toShard)
 
             val resShards = shardTmp * "*" get
+            val arsc = (shardTmp ** "resources.arsc" get).head
+            // futile attempt, resources.arsc must actually reflect contents to work
+            IO.copy(resShards.map(s => (arsc, s / "resources.arsc")))
 
             resShards.map { s =>
               val i = s.getName
