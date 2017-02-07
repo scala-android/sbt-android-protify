@@ -47,15 +47,19 @@ object AndroidProtify extends AutoPlugin {
   override def projectSettings = List(
     clean <<= clean dependsOn (clean in Protify),
     streams in update <<= (streams in update) dependsOn (protifyLibraryDependencies in Protify, protifyExtractAgent in Protify),
-    protify <<= protifyTaskDef,
+    protify <<= protifyTaskDef dependsOn (protifyHasDevice in Protify),
     protifyLayout <<= protifyLayoutTaskDef(),
     protifyLayout <<= protifyLayout dependsOn (packageResources in Protify, compile in Compile)
   ) ++ inConfig(Protify)(List(
     clean <<= protifyCleanTaskDef,
     // because Keys.install and debug are implicitly 'in Android' (1.5.5+)
-    install in Protify <<= protifyInstallTaskDef,
-    debug in Protify <<= protifyRunTaskDef(true),
-    run <<= protifyRunTaskDef(false),
+    install in Protify <<= protifyInstallTaskDef dependsOn protifyHasDevice,
+    debug in Protify <<= protifyRunTaskDef(true) dependsOn protifyHasDevice,
+    run <<= protifyRunTaskDef(false) dependsOn protifyHasDevice,
+    protifyHasDevice := {
+      if (android.Commands.targetDevice((sdkPath in Android).value, streams.value.log).isEmpty)
+        android.PluginFail("no device connected")
+    },
     protifyExtractAgent <<= protifyExtractAgentTaskDef,
     protifyDexAgent <<= protifyDexAgentTaskDef,
     protifyDexJar <<= protifyDexJarTaskDef,
@@ -363,6 +367,7 @@ object AndroidProtify extends AutoPlugin {
     val protifyLayouts = TaskKey[Seq[ResourceId]]("internal-protify-layouts", "internal key: autodetected layout files")
     val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("internal-protify-themes", "internal key: platform themes, app themes")
     val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("internal-protify-layouts-and-themes", "internal key: themes and layouts")
+    val protifyHasDevice = TaskKey[Unit]("internal-protify-has-device", "internal key: fail-fast when a device is not connected")
   }
 
   private[this] def appInfoDescriptor(target: File) =
@@ -555,12 +560,12 @@ object AndroidProtify extends AutoPlugin {
       val dexinfo = createTempFile("dex-info", ".txt")
       dexinfo.deleteOnExit()
       val cmdS =
-        "am"   :: "broadcast"     ::
+        "am"     :: "broadcast"     ::
           "-a"   :: intent          ::
           "-e"   :: EXTRA_RESOURCES :: s"/data/local/tmp/protify/$pkg/${restmp.getName}"  ::
           "-e"   :: EXTRA_DEX_INFO  :: s"/data/local/tmp/protify/$pkg/${dexinfo.getName}" ::
           "-n"   ::
-          s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"       ::
+          s"$pkg/com.hanhuy.android.protify.agent.internal.ProtifyReceiver"               ::
           Nil
 
 
@@ -570,31 +575,32 @@ object AndroidProtify extends AutoPlugin {
 
       dev.executeShellCommand(s"rm -r /data/local/tmp/protify/$pkg/*", new android.Commands.ShellResult)
       var pushres = false
-      var pushdex = false
+      val pushdex = dexlist.nonEmpty
       FileFunction.cached(cacheDirectory / dev.safeSerial / "res", FilesInfo.lastModified) { in =>
         pushres = true
         in
       }(Set(res))
-      pushdex = dexlist.nonEmpty
       val pushlen = (if (pushres) res.length else 0) + (if (pushdex) topush.map(_._1.length).sum else 0)
       if (pushres || pushdex) {
         android.Tasks.logRate(log, s"code deployed to ${dev.getSerialNumber}:", pushlen) {
           if (pushres) {
             val resdest = s"/data/local/tmp/protify/$pkg/${restmp.getName}"
             log.debug(s"Pushing ${res.getAbsolutePath} to $resdest")
+            log.info(s"Sending ${res.getName}")
             dev.pushFile(res.getAbsolutePath, resdest)
           }
           if (pushdex) {
             dev.pushFile(dexinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${dexinfo.getName}")
-            dexinfo.delete()
             dexlist.foreach { case (d, p, n) =>
               log.debug(s"Pushing ${d.getAbsolutePath} to $p")
+              log.info(s"Sending ${d.getName}")
               dev.pushFile(d.getAbsolutePath, p)
             }
           }
         }
         dev.executeShellCommand(cmdS.mkString(" "), new android.Commands.ShellResult)
       }
+      dexinfo.delete()
 
       val oldhashes = installed.map { i =>
         val split = i.split(":")

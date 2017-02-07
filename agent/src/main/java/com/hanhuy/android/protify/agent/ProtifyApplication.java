@@ -289,15 +289,10 @@ public class ProtifyApplication extends Application {
 
     public static void installExternalResources(Context context) {
         File f = ProtifyResources.getResourcesFile(context);
-        try {
-            ApplicationInfo info = context.getPackageManager().getApplicationInfo(
-                    context.getPackageName(), PackageManager.GET_META_DATA);
-            if (info != null && new File(info.sourceDir).lastModified() > f.lastModified()) {
-                Log.v(TAG, "Deleting outdated external resources");
-                f.delete();
-            }
-        } catch (PackageManager.NameNotFoundException e) {
-            throw new IllegalStateException(e);
+        ApplicationInfo info = context.getApplicationInfo();
+        if (info != null && new File(info.sourceDir).lastModified() > f.lastModified()) {
+            Log.v(TAG, "Deleting outdated external resources");
+            f.delete();
         }
         if (f.isFile() && f.length() > 0) {
             Log.v(TAG, "Installing external resource file: " + f);
