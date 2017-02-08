@@ -593,7 +593,7 @@ object AndroidProtify extends AutoPlugin {
             dev.pushFile(dexinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${dexinfo.getName}")
             dexlist.foreach { case (d, p, n) =>
               log.debug(s"Pushing ${d.getAbsolutePath} to $p")
-              log.info(s"Sending ${d.getName} (${android.Packaging.sizeString(res.length)})")
+              log.info(s"Sending ${d.getName} (${android.Packaging.sizeString(d.length)})")
               dev.pushFile(d.getAbsolutePath, p)
             }
           }
