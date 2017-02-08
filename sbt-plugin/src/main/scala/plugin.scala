@@ -586,14 +586,14 @@ object AndroidProtify extends AutoPlugin {
           if (pushres) {
             val resdest = s"/data/local/tmp/protify/$pkg/${restmp.getName}"
             log.debug(s"Pushing ${res.getAbsolutePath} to $resdest")
-            log.info(s"Sending ${res.getName}")
+            log.info(s"Sending ${res.getName} (${android.Packaging.sizeString(res.length)})")
             dev.pushFile(res.getAbsolutePath, resdest)
           }
           if (pushdex) {
             dev.pushFile(dexinfo.getAbsolutePath, s"/data/local/tmp/protify/$pkg/${dexinfo.getName}")
             dexlist.foreach { case (d, p, n) =>
               log.debug(s"Pushing ${d.getAbsolutePath} to $p")
-              log.info(s"Sending ${d.getName}")
+              log.info(s"Sending ${d.getName} (${android.Packaging.sizeString(res.length)})")
               dev.pushFile(d.getAbsolutePath, p)
             }
           }
