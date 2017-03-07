@@ -34,11 +34,10 @@ public class ProtifyReceiver extends BroadcastReceiver {
         if (Intents.PROTIFY_INTENT.equals(action)) {
             InstallState result = install(intent.getExtras(), context);
             if (result.dex || (result.resources && ltV14)) {
-                Log.v(TAG, "Updated dex, restarting process");
+                Log.v(TAG, "Updated dex, restarting process, top non-null: " +
+                        (top != null));
                 if (top != null || ltV14) {
-                    Intent reset = new Intent(context, ProtifyActivity.class);
-                    reset.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                    context.startActivity(reset);
+                    restartApp(context);
                 } else {
                     Process.killProcess(Process.myPid());
                 }
@@ -86,13 +85,20 @@ public class ProtifyReceiver extends BroadcastReceiver {
                 // noop don't care
             }
             if (top != null) {
-                Intent reset = new Intent(context, ProtifyActivity.class);
-                reset.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
-                context.startActivity(reset);
+                restartApp(context);
             } else {
                 Process.killProcess(Process.myPid());
             }
         }
+    }
+
+    private void restartApp(Context context) {
+//        Intent reset = new Intent(context, ProtifyActivity.class);
+//        reset.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
+//        context.startActivity(reset);
+        Context application = context.getApplicationContext();
+        Restarter.restartApp(
+                application, Restarter.getActivities(application, false), true);
     }
 
     private InstallState install(Bundle extras, Context context) {

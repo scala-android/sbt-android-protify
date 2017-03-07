@@ -33,7 +33,7 @@ val common = project.in(file("common")).settings(
 )
 
 lazy val agent = project.in(file("agent")).settings(androidBuildAar).settings(
-  platformTarget in Android := "android-15",
+  platformTarget in Android := "android-19",
   mappings in (Compile, packageBin) ++= (mappings in (Compile, packageBin) in common).value,
   javacOptions in (Compile,doc) ~= {
     _.foldRight(List.empty[String]) { (x, a) =>
@@ -47,6 +47,7 @@ lazy val agent = project.in(file("agent")).settings(androidBuildAar).settings(
   autoScalaLibrary := false,
   organization := "com.hanhuy.android",
   packageForR := "com.hanhuy.android.protify.agent",
+  libraryDependencies += "com.android.support" % "support-annotations" % "25.2.0" % "compile-internal",
   name := "protify-agent",
   javacOptions in Compile ++= "-target" :: "1.7" :: "-source" :: "1.7" :: Nil
 ) dependsOn(common % "compile-internal")
@@ -232,4 +233,4 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
 
 //Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.4.2"
+version in Global := "1.4.3-SNAPSHOT"
