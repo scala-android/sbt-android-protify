@@ -9,6 +9,8 @@ import android.util.Log;
 import java.io.*;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.nio.channels.FileChannel;
+import java.nio.channels.FileLock;
 import java.util.*;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipFile;
@@ -49,25 +51,52 @@ public class DexExtractor {
     static List<File> load(Context context, ApplicationInfo applicationInfo, File dexDir) throws IOException {
         return load(context, applicationInfo, dexDir, false);
     }
-    static List<File> load(Context context, ApplicationInfo applicationInfo, File dexDir, boolean force) throws IOException {
+    static List<File> load(final Context context, final ApplicationInfo applicationInfo, final File dexDir, final boolean force) throws IOException {
         Log.i(TAG, "DexExtractor.load(" + applicationInfo.sourceDir + ")");
         final File sourceApk = new File(applicationInfo.sourceDir);
 
-        long currentCrc = getZipCrc(sourceApk);
+        final long currentCrc = getZipCrc(sourceApk);
 
-        List<File> files;
-        if (!force && !isModified(context, sourceApk, currentCrc)) {
-            files = loadExistingExtractions(dexDir);
-            if (files.isEmpty())
-                files = performExtractions(sourceApk, dexDir);
-        } else {
-            Log.i(TAG, "Detected that extraction must be performed.");
-            files = performExtractions(sourceApk, dexDir);
-            putStoredApkInfo(context, getTimeStamp(sourceApk), currentCrc);
+        return withBlockingLock(dexDir, new RunnableIO<List<File>>() {
+            @Override
+            public List<File> run() throws IOException {
+                List<File> files;
+                if (!force && !isModified(context, sourceApk, currentCrc)) {
+                    files = loadExistingExtractions(dexDir);
+                    if (files.isEmpty())
+                        files = performExtractions(sourceApk, dexDir);
+                } else {
+                    Log.i(TAG, "Detected that extraction must be performed.");
+                    files = performExtractions(sourceApk, dexDir);
+                    putStoredApkInfo(context, getTimeStamp(sourceApk), currentCrc);
+                }
+
+                Log.i(TAG, "load found " + files.size() + " secondary dex files");
+                return files;
+            }
+        });
+    }
+
+    interface RunnableIO<T> {
+        T run() throws IOException;
+    }
+
+    private static <T> T withBlockingLock(File dexDir, RunnableIO<T> r) throws IOException {
+        File lockFile = new File(dexDir, "protify.extract.lock");
+        RandomAccessFile lockRaf = new RandomAccessFile(lockFile, "rw");
+        FileChannel lockChannel = null;
+        FileLock cacheLock = null;
+        try {
+            lockChannel = lockRaf.getChannel();
+            cacheLock = lockChannel.lock();
+            return r.run();
+        } finally {
+            if (cacheLock != null)
+                cacheLock.release();
+            if (lockChannel != null)
+                lockChannel.close();
+            lockRaf.close();
         }
-
-        Log.i(TAG, "load found " + files.size() + " secondary dex files");
-        return files;
     }
 
     private static List<File> loadExistingExtractions(File dexDir) {
@@ -128,7 +157,6 @@ public class DexExtractor {
 
         List<File> files = new ArrayList<File>();
 
-        // TODO re-implement extraction into a final ZIP file for v4-13 support
         final ZipFile apk = new ZipFile(sourceApk);
         try {
             for (Enumeration<? extends ZipEntry> e = apk.entries(); e.hasMoreElements();) {
