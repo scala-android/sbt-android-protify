@@ -31,6 +31,7 @@ public class DexExtractor {
     private static final String PREFS_FILE = "protify.version";
     private static final String KEY_TIME_STAMP = "timestamp";
     private static final String KEY_CRC = "crc";
+    private static final String LOCK_FILE = "protify.extraction.lock";
 
     /**
      * Size of reading buffers.
@@ -55,20 +56,17 @@ public class DexExtractor {
         Log.i(TAG, "DexExtractor.load(" + applicationInfo.sourceDir + ")");
         final File sourceApk = new File(applicationInfo.sourceDir);
 
-        final long currentCrc = getZipCrc(sourceApk);
-
-        return withBlockingLock(dexDir, new RunnableIO<List<File>>() {
+        return withBlockingLock(dexDir, sourceApk, new RunnableIO<List<File>>() {
             @Override
-            public List<File> run() throws IOException {
+            public List<File> run(boolean dirty) throws IOException {
                 List<File> files;
-                if (!force && !isModified(context, sourceApk, currentCrc)) {
+                if (!force && !dirty) {
                     files = loadExistingExtractions(dexDir);
                     if (files.isEmpty())
                         files = performExtractions(sourceApk, dexDir);
                 } else {
                     Log.i(TAG, "Detected that extraction must be performed.");
                     files = performExtractions(sourceApk, dexDir);
-                    putStoredApkInfo(context, getTimeStamp(sourceApk), currentCrc);
                 }
 
                 Log.i(TAG, "load found " + files.size() + " secondary dex files");
@@ -78,24 +76,33 @@ public class DexExtractor {
     }
 
     interface RunnableIO<T> {
-        T run() throws IOException;
+        T run(boolean dirty) throws IOException;
     }
 
-    private static <T> T withBlockingLock(File dexDir, RunnableIO<T> r) throws IOException {
-        File lockFile = new File(dexDir, "protify.extract.lock");
+    private static <T> T withBlockingLock(File dexDir, File sourceApk, RunnableIO<T> r) throws IOException {
+        final long currentCrc = getZipCrc(sourceApk);
+        File lockFile = new File(dexDir, LOCK_FILE);
         RandomAccessFile lockRaf = new RandomAccessFile(lockFile, "rw");
         FileChannel lockChannel = null;
         FileLock cacheLock = null;
         try {
             lockChannel = lockRaf.getChannel();
+            Log.v(TAG, "Waiting for lock on: " + lockFile.getAbsolutePath());
             cacheLock = lockChannel.lock();
-            return r.run();
+            Log.v(TAG, "Locked " + lockFile.getPath());
+            long l = lockRaf.length() >= (Long.SIZE / 8) ? lockRaf.readLong() : 0;
+            long c = lockRaf.length() >= 2 * (Long.SIZE / 8) ? lockRaf.readLong() : 0;
+            return r.run(c != currentCrc || l != getTimeStamp(sourceApk));
         } finally {
+            lockRaf.seek(0);
+            lockRaf.writeLong(getTimeStamp(sourceApk));
+            lockRaf.writeLong(currentCrc);
             if (cacheLock != null)
                 cacheLock.release();
             if (lockChannel != null)
                 lockChannel.close();
             lockRaf.close();
+            Log.v(TAG, "Unlocked " + lockFile.getPath());
         }
     }
 
@@ -119,12 +126,6 @@ public class DexExtractor {
         if (files == null) files = new File[0];
 
         return Arrays.asList(files);
-    }
-
-    private static boolean isModified(Context context, File archive, long currentCrc) {
-        SharedPreferences prefs = getMultiDexPreferences(context);
-        return (prefs.getLong(KEY_TIME_STAMP, NO_VALUE) != getTimeStamp(archive))
-                || (prefs.getLong(KEY_CRC, NO_VALUE) != currentCrc);
     }
 
     private static long getTimeStamp(File archive) {
@@ -184,25 +185,6 @@ public class DexExtractor {
         return files;
     }
 
-    private static void putStoredApkInfo(Context context, long timeStamp, long crc) {
-        SharedPreferences prefs = getMultiDexPreferences(context);
-        SharedPreferences.Editor edit = prefs.edit();
-        edit.putLong(KEY_TIME_STAMP, timeStamp);
-        edit.putLong(KEY_CRC, crc);
-        /* SharedPreferences.Editor doc says that apply() and commit() "atomically performs the
-         * requested modifications" it should be OK to rely on saving the dex files number (getting
-         * old number value would go along with old crc and time stamp).
-         */
-        apply(edit);
-    }
-
-    private static SharedPreferences getMultiDexPreferences(Context context) {
-        return context.getSharedPreferences(PREFS_FILE,
-                Build.VERSION.SDK_INT < 11 /* Build.VERSION_CODES.HONEYCOMB */
-                        ? Context.MODE_PRIVATE
-                        : Context.MODE_PRIVATE | Context.MODE_MULTI_PROCESS /* Context.MODE_MULTI_PROCESS */);
-    }
-
     // TODO use FileObserver to lock on this directory if necessary
     private static void prepareDexDir(File dexDir) {
         File[] files = dexDir.listFiles();
@@ -211,8 +193,10 @@ public class DexExtractor {
             return;
         }
         for (File oldFile : files) {
-            if (!oldFile.delete()) {
-                Log.w(TAG, "Failed to delete old file " + oldFile.getPath());
+            if (!LOCK_FILE.equals(oldFile.getName())) {
+                if (!oldFile.delete()) {
+                    Log.w(TAG, "Failed to delete old file " + oldFile.getPath());
+                }
             }
         }
     }
@@ -295,32 +279,6 @@ public class DexExtractor {
         } catch (IOException e) {
             Log.w(TAG, "Failed to close resource", e);
         }
-    }
-
-    // The following is taken from SharedPreferencesCompat to avoid having a dependency of the
-    // multidex support library on another support library.
-    private static Method sApplyMethod;  // final
-    static {
-        try {
-            Class<?> cls = SharedPreferences.Editor.class;
-            sApplyMethod = cls.getMethod("apply");
-        } catch (NoSuchMethodException unused) {
-            sApplyMethod = null;
-        }
-    }
-
-    private static void apply(SharedPreferences.Editor editor) {
-        if (sApplyMethod != null) {
-            try {
-                sApplyMethod.invoke(editor);
-                return;
-            } catch (InvocationTargetException unused) {
-                // fall through
-            } catch (IllegalAccessException unused) {
-                // fall through
-            }
-        }
-        editor.commit();
     }
 }
 
