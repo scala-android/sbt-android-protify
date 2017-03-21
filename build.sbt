@@ -234,3 +234,16 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
 //Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
 version in Global := "1.4.3-SNAPSHOT"
+
+pomExtra :=
+  <scm>
+    <url>git@github.com:scala-android/sbt-android-protify.git</url>
+    <connection>scm:git:git@github.com:scala-android/sbt-android-protify.git</connection>
+  </scm>
+    <developers>
+      <developer>
+        <id>pfnguyen</id>
+        <name>Perry Nguyen</name>
+        <url>https://github.com/pfn</url>
+      </developer>
+    </developers>
