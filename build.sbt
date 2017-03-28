@@ -54,7 +54,7 @@ lazy val agent = project.in(file("agent")).settings(androidBuildAar).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("org.scala-android" % "sbt-android" % "1.7.5")
+    addSbtPlugin("org.scala-android" % "sbt-android" % "1.7.7")
 ).settings(
   name := "sbt-android-protify",
   organization := "org.scala-android",

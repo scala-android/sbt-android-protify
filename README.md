@@ -55,7 +55,7 @@ all future updates can be accessed by using
 1. Install sbt from http://scala-sbt.org, homebrew, ports, or your
    package manager of choice
 2. Install [sbt-android](https://github.com/scala-android/sbt-android):
-   `echo 'addSbtPlugin("org.scala-android" % "sbt-android" % "1.7.5")' > ~/.sbt/0.13/plugins/android.sbt`
+   `echo 'addSbtPlugin("org.scala-android" % "sbt-android" % "1.7.7")' > ~/.sbt/0.13/plugins/android.sbt`
 3. Start from an existing or new project (for trivial projects):
    `sbt "gen-android ..."` to create a new project, `sbt gen-android-sbt` to
    generate sbt files in an existing project. Non-trivial projects will need
