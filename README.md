@@ -40,7 +40,7 @@ all future updates can be accessed by using
      * `echo >> build.sbt`
        * Replace `Some(...)` with `None` if you don't have a flavor or build type to apply
 4. Install the `sbt-android-protify` plugin, also from the project base, do:
-   * `echo 'addSbtPlugin("org.scala-android" % "sbt-android-protify" % "1.4.3")' >> project/plugins.sbt`
+   * `echo 'addSbtPlugin("org.scala-android" % "sbt-android-protify" % "1.4.4")' >> project/plugins.sbt`
    * For every application sub-project, do: `echo 'enablePlugins(AndroidProtify)' > APP-PROJECT-DIR/protify.sbt`
 5. Launch SBT, `sbt` (first time's gonna take a while, downloading the internet and all)
 5. Build and install the application normally, at least once:
@@ -63,7 +63,7 @@ all future updates can be accessed by using
    * Alternatively, use `sbt-android-gradle` when working with an existing gradle project:
      * `echo 'addSbtPlugin("org.scala-android" % "sbt-android-gradle" % "1.3.2")' > project/plugins.sbt`
 4. Add the protify plugin:
-   `echo 'addSbtPlugin("org.scala-android" % "sbt-android-protify" % "1.4.3")' >> project/plugins.sbt`
+   `echo 'addSbtPlugin("org.scala-android" % "sbt-android-protify" % "1.4.4")' >> project/plugins.sbt`
 5. Add `AndroidProtify`: `echo enablePlugins(AndroidProtify) >> build.sbt`
 6. Run SBT
 7. Select device to run on by using the `devices` and `device` commands. Run
