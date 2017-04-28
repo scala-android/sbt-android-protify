@@ -47,18 +47,36 @@ object AndroidProtify extends AutoPlugin {
   override def projectSettings = List(
     clean <<= clean dependsOn (clean in Protify),
     streams in update <<= (streams in update) dependsOn (protifyLibraryDependencies in Protify, protifyExtractAgent in Protify),
-    protify <<= protifyTaskDef dependsOn (protifyHasDevice in Protify),
+    protify <<= protifyTaskDef dependsOn protifyHasDevice dependsOn protifyHasInstall,
     protifyLayout <<= protifyLayoutTaskDef(),
     protifyLayout <<= protifyLayout dependsOn (packageResources in Protify, compile in Compile)
   ) ++ inConfig(Protify)(List(
     clean <<= protifyCleanTaskDef,
     // because Keys.install and debug are implicitly 'in Android' (1.5.5+)
-    install in Protify <<= protifyInstallTaskDef dependsOn protifyHasDevice,
-    debug in Protify <<= protifyRunTaskDef(true) dependsOn protifyHasDevice,
-    run <<= protifyRunTaskDef(false) dependsOn protifyHasDevice,
+    install in Protify <<= protifyInstallTaskDef dependsOn protifyHasDevice dependsOn protifyHasInstall,
+    debug in Protify <<= protifyRunTaskDef(true) dependsOn protifyHasDevice dependsOn protifyHasInstall,
+    run <<= protifyRunTaskDef(false) dependsOn protifyHasDevice dependsOn protifyHasInstall,
     protifyHasDevice := {
       if (android.Commands.targetDevice((sdkPath in Android).value, streams.value.log).isEmpty)
         android.PluginFail("no device connected")
+    },
+    protifyHasInstall := {
+      val all = allDevices.value
+      val st = streams.value
+      val sdk = sdkPath.value
+      val layout = projectLayout.value
+      implicit val output = outputLayout.value
+
+      val execute = { (dev: IDevice) =>
+        val installHash = layout.protifyInstalledHash(dev)
+        if (!installHash.isFile)
+          android.fail(s"Application has not been installed to ${dev.getSerialNumber}, android:install first")
+        ()
+      }
+      if (all)
+        android.Commands.deviceList(sdk, st.log).par foreach execute
+      else
+        android.Commands.targetDevice(sdk, st.log) foreach execute
     },
     protifyExtractAgent <<= protifyExtractAgentTaskDef,
     protifyDexAgent <<= protifyDexAgentTaskDef,
@@ -367,7 +385,8 @@ object AndroidProtify extends AutoPlugin {
     val protifyLayouts = TaskKey[Seq[ResourceId]]("internal-protify-layouts", "internal key: autodetected layout files")
     val protifyThemes = TaskKey[(Seq[ResourceId],Seq[ResourceId])]("internal-protify-themes", "internal key: platform themes, app themes")
     val protifyLayoutsAndThemes = TaskKey[(Seq[ResourceId],(Seq[ResourceId],Seq[ResourceId]))]("internal-protify-layouts-and-themes", "internal key: themes and layouts")
-    val protifyHasDevice = TaskKey[Unit]("internal-protify-has-device", "internal key: fail-fast when a device is not connected")
+    val protifyHasDevice = TaskKey[Unit]("internal-protify-has-device", "internal key: fail-fast when a device is not connected") in Protify
+    val protifyHasInstall = TaskKey[Unit]("internal-protify-has-install", "internal key: fail-fast when selected devices do not have an instrumented apk installed") in Protify
   }
 
   private[this] def appInfoDescriptor(target: File) =
