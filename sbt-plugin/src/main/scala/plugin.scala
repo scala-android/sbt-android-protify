@@ -940,7 +940,7 @@ object AndroidProtify extends AutoPlugin {
         withZipOutput(outputFile) { output =>
           val createEntry: (String => ZipEntry) = name => {
             val ze = new ZipEntry(name)
-            ze.setMethod(if (noCompress(name)) ZipEntry.STORED else ZipEntry.DEFLATED)
+            ze.setMethod(if (noCompress.test(name)) ZipEntry.STORED else ZipEntry.DEFLATED)
             ze
           }
           writeZip(sources, output)(createEntry)

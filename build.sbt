@@ -54,7 +54,7 @@ lazy val agent = project.in(file("agent")).settings(androidBuildAar).settings(
 
 val plugin = project.in(file("sbt-plugin")).settings(
   bintrayPublishSettings ++ scriptedSettings ++
-    addSbtPlugin("org.scala-android" % "sbt-android" % "1.7.7")
+    addSbtPlugin("org.scala-android" % "sbt-android" % "1.8.0-SNAPSHOT")
 ).settings(
   name := "sbt-android-protify",
   organization := "org.scala-android",
@@ -233,7 +233,7 @@ val mobile = project.in(file("android")).settings(androidBuild).settings(
 
 //Keys.`package` in Android <<= Keys.`package` in (mobile,Android)
 
-version in Global := "1.4.4"
+version in Global := "1.5.0-SNAPSHOT"
 
 pomExtra :=
   <scm>
