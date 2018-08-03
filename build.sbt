@@ -40,6 +40,8 @@ lazy val agent = project.in(file("agent")).settings(androidBuildAar).settings(
       if ("-bootclasspath" == x) {
         import java.io.File._
         x :: (System.getProperty("java.home") + separator + "lib" + separator + "rt.jar" + pathSeparator + a.head) :: a.tail
+      } else if ("-target" == x) {
+        a.tail
       }
       else x :: a
     }
